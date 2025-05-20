@@ -80,8 +80,8 @@ func main() {
 		Mode:        "singleplayer",
 		IP:          "84.25.253.77",
 		Port:        17540,
-		FieldHeight: 10,
-		FieldWidth:  10,
+		FieldHeight: 25,
+		FieldWidth:  25,
 	}); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
