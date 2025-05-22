@@ -4,15 +4,14 @@ import (
 	"errors"
 	"math/rand/v2"
 	"slices"
+	"time"
 )
 
 type (
 	color   string
 	charSet string
 
-	gameErrors struct {
-		NotATerm, GameStateNotWaiting, GameStateNotActive, Exit error
-	}
+	gameErrors struct{ NotATerm, GameStateNotWaiting, GameStateNotActive, GamePhaseNotBuilding, Exit error }
 
 	keybinds struct{ Up, Down, Right, Left, PanUp, PanDown, PanRight, PanLeft, Plus, Minus, Exit, Pause, Confirm, Delete, Numbers []keybind }
 	keybind  []byte
@@ -27,27 +26,40 @@ type (
 	}
 	GameState struct {
 		// Valid states: `waiting`, `started`, `paused`, `stopped`
-		State     string
+		State string
+		// Valid phases: `building`, `defending`, `lost`
+		Phase     string
+		Health    int
 		Obstacles []FieldObj
 		Roads     []RoadObj
 		Towers    []TowerObj
+		Enemies   []*EnemyObj
 	}
 	Game struct {
-		GC        GameConfig
-		GS        GameState
-		Iteration uint8
+		GC GameConfig
+		GS GameState
 	}
 )
 
 var (
 	Errors = gameErrors{
-		NotATerm:            errors.New("stdin/ stdout should be a terminal"),
-		GameStateNotWaiting: errors.New("game state is not waiting"),
-		GameStateNotActive:  errors.New("game state is not started or paused"),
-		Exit:                errors.New("game is exiting"),
+		NotATerm:             errors.New("stdin/ stdout should be a terminal"),
+		GameStateNotWaiting:  errors.New("game state is not waiting"),
+		GameStateNotActive:   errors.New("game state is not started or paused"),
+		GamePhaseNotBuilding: errors.New("game phase is not building"),
+		Exit:                 errors.New("game is exiting"),
 	}
 
 	KeyBinds = keybinds{
+		// ESC, CTRL_C, CTRL_D,
+		Exit: []keybind{{27, 0, 0}, {3, 0, 0}, {4, 0, 0}},
+		// P, Q
+		Pause: []keybind{{112, 0, 0}, {113, 0, 0}},
+		// RETURN
+		Confirm: []keybind{{13, 0, 0}},
+		// BACKSPACE, DEL
+		Delete: []keybind{{127, 0, 0}, {27, 91, 51}},
+
 		// W, K
 		Up: []keybind{{119, 0, 0}, {107, 0, 0}},
 		// S, J
@@ -71,17 +83,20 @@ var (
 		// MINUS
 		Minus: []keybind{{45, 0, 0}},
 
-		// ESC, CTRL_C, CTRL_D,
-		Exit: []keybind{{27, 0, 0}, {3, 0, 0}, {4, 0, 0}},
-		// P, Q
-		Pause: []keybind{{112, 0, 0}, {113, 0, 0}},
-		// RETURN
-		Confirm: []keybind{{13, 0, 0}},
-		// BACKSPACE, DEL
-		Delete: []keybind{{127, 0, 0}, {27, 91, 51}},
-
 		// 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
 		Numbers: []keybind{{48, 0, 0}, {49, 0, 0}, {50, 0, 0}, {51, 0, 0}, {52, 0, 0}, {53, 0, 0}, {54, 0, 0}, {55, 0, 0}, {56, 0, 0}, {57, 0, 0}},
+	}
+
+	Towers = map[string]TowerObj{
+		"Basic": {
+			x: 0, y: 0,
+			color:        Black,
+			Name:         "Basic",
+			damage:       1,
+			fireRange:    3,
+			fireProgress: 0,
+			fireDelay:    1000,
+		},
 	}
 )
 
@@ -154,9 +169,12 @@ func NewGame(gc GameConfig) *Game {
 		GC: gc,
 		GS: GameState{
 			State:     "waiting",
+			Phase:     "building",
+			Health:    100,
 			Obstacles: []FieldObj{},
 			Roads:     []RoadObj{},
 			Towers:    []TowerObj{},
+			Enemies:   []*EnemyObj{},
 		},
 	}
 }
@@ -207,9 +225,9 @@ func (game *Game) genRoads() {
 
 		switch dir {
 		case "up":
-			y += 1
-			if y >= game.GC.FieldHeight {
-				y = 0
+			y -= 1
+			if y < 0 {
+				y = game.GC.FieldHeight
 			}
 		case "right":
 			x += 1
@@ -217,9 +235,9 @@ func (game *Game) genRoads() {
 				x = 0
 			}
 		case "down":
-			y -= 1
-			if y < 0 {
-				y = game.GC.FieldHeight
+			y += 1
+			if y >= game.GC.FieldHeight {
+				y = 0
 			}
 		case "left":
 			x -= 1
@@ -234,8 +252,9 @@ func (game *Game) genRoads() {
 		}
 
 		game.GS.Roads = append(game.GS.Roads, RoadObj{
-			x: x, y: y,
-			color: White,
+			x: oldX, y: oldY,
+			color:     BGGreen + White,
+			Direction: dir,
 		})
 	}
 }
@@ -250,7 +269,24 @@ func (game *Game) genObstacles() {
 
 		game.GS.Obstacles = append(game.GS.Obstacles, FieldObj{
 			x: x, y: y,
-			color: Black,
+			color: BGBrightYellow + BrightBlue,
+		})
+	}
+}
+
+func (game *Game) genEnemies() {
+	x, y := 0, 0
+	if len(game.GS.Roads) > 0 {
+		x, y = game.GS.Roads[0].Cord()
+	}
+
+	for i := range 10 + rand.IntN(10) {
+		game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
+			x: x, y: y,
+			color:           Red,
+			Progress:        0,
+			startDelay:      i * 1500,
+			speedMultiplier: 4,
 		})
 	}
 }
@@ -287,9 +323,69 @@ func (game *Game) TogglePause() error {
 	return Errors.GameStateNotActive
 }
 
-func (game *Game) Iterate() {
+func (game *Game) StartRound() error {
+	if game.GS.State != "started" && game.GS.State != "paused" {
+		return Errors.GameStateNotActive
+	} else if game.GS.Phase != "building" {
+		return Errors.GamePhaseNotBuilding
+	}
+
+	game.genEnemies()
+
+	game.GS.Phase = "defending"
+	return nil
+}
+
+func (game *Game) PlaceTower(name string) error {
+	if game.GS.State != "started" && game.GS.State != "paused" {
+		return Errors.GameStateNotActive
+	} else if game.GS.Phase != "building" {
+		return Errors.GamePhaseNotBuilding
+	}
+
+	return nil
+}
+
+func (game *Game) iterateEnemies(delta time.Duration) {
+	toPop := []int{}
+	for i, enemy := range game.GS.Enemies {
+		if enemy.startDelay > 0 {
+			enemy.startDelay -= min(enemy.startDelay, int(delta.Milliseconds()))
+			continue
+		}
+
+		enemy.Progress += (float64(delta.Milliseconds()) / 1000) * enemy.speedMultiplier
+
+		if int(enemy.Progress) >= len(game.GS.Roads) {
+			game.GS.Health -= 1
+			toPop = append(toPop, i)
+			continue
+		}
+
+		enemy.x, enemy.y = game.GS.Roads[int(enemy.Progress)].Cord()
+	}
+	slices.Reverse(toPop)
+	for _, i := range toPop {
+		// game.GS.Enemies = slices.Delete(game.GS.Enemies, i, i+1)
+		game.GS.Enemies = append(game.GS.Enemies[:i], game.GS.Enemies[i+1:]...)
+	}
+
+	if len(game.GS.Enemies) <= 0 {
+		game.GS.Phase = "building"
+	}
+
+	if game.GS.Health <= 0 {
+		game.GS.Phase = "lost"
+		return
+	}
+}
+
+func (game *Game) Iterate(delta time.Duration) {
 	if game.GS.State == "paused" {
 		return
 	}
-	game.Iteration += 1
+
+	if game.GS.Phase == "defending" {
+		game.iterateEnemies(delta)
+	}
 }
