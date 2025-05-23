@@ -8,13 +8,9 @@ import (
 )
 
 type (
-	color   string
-	charSet string
+	color string
 
-	gameErrors struct{ NotATerm, GameStateNotWaiting, GameStateNotActive, GamePhaseNotBuilding, Exit error }
-
-	keybinds struct{ Up, Down, Right, Left, PanUp, PanDown, PanRight, PanLeft, Plus, Minus, Exit, Pause, Confirm, Delete, Numbers []keybind }
-	keybind  []byte
+	gameErrors struct{ GameStateNotWaiting, GameStateNotActive, GamePhaseNotBuilding, InvalidPlacement, TowerNotExists error }
 
 	GameConfig struct {
 		// Valid modes: `singleplayer`, `multiplayer`, `server`
@@ -30,9 +26,9 @@ type (
 		// Valid phases: `building`, `defending`, `lost`
 		Phase     string
 		Health    int
-		Obstacles []FieldObj
-		Roads     []RoadObj
-		Towers    []TowerObj
+		Obstacles []*ObstacleObj
+		Roads     []*RoadObj
+		Towers    []*TowerObj
 		Enemies   []*EnemyObj
 	}
 	Game struct {
@@ -43,61 +39,54 @@ type (
 
 var (
 	Errors = gameErrors{
-		NotATerm:             errors.New("stdin/ stdout should be a terminal"),
 		GameStateNotWaiting:  errors.New("game state is not waiting"),
 		GameStateNotActive:   errors.New("game state is not started or paused"),
 		GamePhaseNotBuilding: errors.New("game phase is not building"),
-		Exit:                 errors.New("game is exiting"),
+		InvalidPlacement:     errors.New("object is placed invalid"),
+		TowerNotExists:       errors.New("tower does not exists"),
 	}
 
-	KeyBinds = keybinds{
-		// ESC, CTRL_C, CTRL_D,
-		Exit: []keybind{{27, 0, 0}, {3, 0, 0}, {4, 0, 0}},
-		// P, Q
-		Pause: []keybind{{112, 0, 0}, {113, 0, 0}},
-		// RETURN
-		Confirm: []keybind{{13, 0, 0}},
-		// BACKSPACE, DEL
-		Delete: []keybind{{127, 0, 0}, {27, 91, 51}},
-
-		// W, K
-		Up: []keybind{{119, 0, 0}, {107, 0, 0}},
-		// S, J
-		Down: []keybind{{115, 0, 0}, {106, 0, 0}},
-		// D, L
-		Right: []keybind{{100, 0, 0}, {108, 0, 0}},
-		// A, H
-		Left: []keybind{{97, 0, 0}, {104, 0, 0}},
-
-		// UP
-		PanUp: []keybind{{27, 91, 65}},
-		// DOWN
-		PanDown: []keybind{{27, 91, 66}},
-		// RIGHT,
-		PanRight: []keybind{{27, 91, 67}},
-		// LEFT,
-		PanLeft: []keybind{{27, 91, 68}},
-
-		// PLUS
-		Plus: []keybind{{43, 0, 0}},
-		// MINUS
-		Minus: []keybind{{45, 0, 0}},
-
-		// 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-		Numbers: []keybind{{48, 0, 0}, {49, 0, 0}, {50, 0, 0}, {51, 0, 0}, {52, 0, 0}, {53, 0, 0}, {54, 0, 0}, {55, 0, 0}, {56, 0, 0}, {57, 0, 0}},
-	}
-
-	Towers = map[string]TowerObj{
-		"Basic": {
+	Towers = []TowerObj{
+		{
 			x: 0, y: 0,
-			color:        Black,
-			Name:         "Basic",
-			damage:       1,
-			fireRange:    3,
-			fireProgress: 0,
-			fireDelay:    1000,
+			color:               Black,
+			Name:                "Basic",
+			damage:              1,
+			fireRange:           3,
+			fireProgress:        0.0,
+			fireSpeedMultiplier: 1.0,
+			effectiveRange:      []*RoadObj{},
+		}, {
+			x: 0, y: 0,
+			color:               Black,
+			Name:                "LongRange",
+			damage:              1,
+			fireRange:           5,
+			fireProgress:        0.0,
+			fireSpeedMultiplier: 1.0,
+			effectiveRange:      []*RoadObj{},
+		}, {
+			x: 0, y: 0,
+			color:               Black,
+			Name:                "Fast",
+			damage:              1,
+			fireRange:           1,
+			fireProgress:        0.0,
+			fireSpeedMultiplier: 3.0,
+			effectiveRange:      []*RoadObj{},
+		}, {
+			x: 0, y: 0,
+			color:               Black,
+			Name:                "Strong",
+			damage:              3,
+			fireRange:           1,
+			fireProgress:        0.0,
+			fireSpeedMultiplier: 1.0,
+			effectiveRange:      []*RoadObj{},
 		},
 	}
+
+	uid = 0
 )
 
 const (
@@ -147,23 +136,6 @@ const (
 	BGBrightWhite   color = "\033[107m"
 )
 
-const (
-	Letters        charSet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	Digits         charSet = "0123456789"
-	Hex            charSet = "0123456789abcdefABCDEF"
-	WhiteSpace     charSet = " "
-	Punctuation    charSet = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
-	GeneralCharSet charSet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
-)
-
-func KeyBindContains(kb []keybind, b []byte) bool {
-	return slices.ContainsFunc(kb, func(v keybind) bool { return slices.Equal(v, b) })
-}
-
-func KeyBindIndex(kb []keybind, b []byte) int {
-	return slices.IndexFunc(kb, func(v keybind) bool { return slices.Equal(v, b) })
-}
-
 func NewGame(gc GameConfig) *Game {
 	return &Game{
 		GC: gc,
@@ -171,43 +143,17 @@ func NewGame(gc GameConfig) *Game {
 			State:     "waiting",
 			Phase:     "building",
 			Health:    100,
-			Obstacles: []FieldObj{},
-			Roads:     []RoadObj{},
-			Towers:    []TowerObj{},
+			Obstacles: []*ObstacleObj{},
+			Roads:     []*RoadObj{},
+			Towers:    []*TowerObj{},
 			Enemies:   []*EnemyObj{},
 		},
 	}
 }
 
-func (game *Game) CheckCollisions(x, y int) bool {
-	if slices.ContainsFunc(game.GS.Obstacles, func(obj FieldObj) bool { return obj.x == x && obj.y == y }) {
-		return true
-	}
-	if slices.ContainsFunc(game.GS.Roads, func(obj RoadObj) bool { return obj.x == x && obj.y == y }) {
-		return true
-	}
-	if slices.ContainsFunc(game.GS.Towers, func(obj TowerObj) bool { return obj.x == x && obj.y == y }) {
-		return true
-	}
-	return false
-}
-
-func (game *Game) GetCollisions(x, y int) []GameObj {
-	objects := []GameObj{}
-	if i := slices.IndexFunc(game.GS.Obstacles, func(obj FieldObj) bool { return obj.x == x && obj.y == y }); i >= 0 {
-		objects = append(objects, &game.GS.Obstacles[i])
-	}
-	if i := slices.IndexFunc(game.GS.Roads, func(obj RoadObj) bool { return obj.x == x && obj.y == y }); i >= 0 {
-		objects = append(objects, &game.GS.Roads[i])
-	}
-	if i := slices.IndexFunc(game.GS.Towers, func(obj TowerObj) bool { return obj.x == x && obj.y == y }); i >= 0 {
-		objects = append(objects, &game.GS.Towers[i])
-	}
-	return objects
-}
-
 func (game *Game) genRoads() {
 	x, y, dir := rand.IntN(game.GC.FieldWidth), rand.IntN(game.GC.FieldHeight), "right"
+	index := 0
 	for range int(float64(game.GC.FieldWidth+game.GC.FieldHeight) * (1 + rand.Float64())) {
 		oldX, oldY, oldDir := x, y, dir
 
@@ -246,16 +192,18 @@ func (game *Game) genRoads() {
 			}
 		}
 
-		if slices.ContainsFunc(game.GetCollisions(x, y), func(obj GameObj) bool { return obj.Type() != "Road" }) {
+		if game.CheckCollisionObstacles(x, y) || game.CheckCollisionTowers(x, y) {
 			x, y, dir = oldX, oldY, oldDir
 			continue
 		}
 
-		game.GS.Roads = append(game.GS.Roads, RoadObj{
+		game.GS.Roads = append(game.GS.Roads, &RoadObj{
 			x: oldX, y: oldY,
 			color:     BGGreen + White,
+			Index:     index,
 			Direction: dir,
 		})
+		index += 1
 	}
 }
 
@@ -267,7 +215,7 @@ func (game *Game) genObstacles() {
 			continue
 		}
 
-		game.GS.Obstacles = append(game.GS.Obstacles, FieldObj{
+		game.GS.Obstacles = append(game.GS.Obstacles, &ObstacleObj{
 			x: x, y: y,
 			color: BGBrightYellow + BrightBlue,
 		})
@@ -281,12 +229,15 @@ func (game *Game) genEnemies() {
 	}
 
 	for i := range 10 + rand.IntN(10) {
+		uid += 1
 		game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
 			x: x, y: y,
-			color:           Red,
-			Progress:        0,
+			color:           BGGreen + Red,
+			UID:             uid,
+			Progress:        0.0,
+			health:          1,
 			startDelay:      i * 1500,
-			speedMultiplier: 4,
+			speedMultiplier: 4.0,
 		})
 	}
 }
@@ -332,18 +283,67 @@ func (game *Game) StartRound() error {
 
 	game.genEnemies()
 
+	// TEMP
+	for range int(float64(game.GC.FieldWidth+game.GC.FieldHeight) * rand.Float64()) {
+		_ = game.PlaceTower("", rand.IntN(game.GC.FieldWidth), rand.IntN(game.GC.FieldHeight))
+	}
+
 	game.GS.Phase = "defending"
 	return nil
 }
 
-func (game *Game) PlaceTower(name string) error {
+func (game *Game) PlaceTower(name string, x, y int) error {
 	if game.GS.State != "started" && game.GS.State != "paused" {
 		return Errors.GameStateNotActive
 	} else if game.GS.Phase != "building" {
 		return Errors.GamePhaseNotBuilding
 	}
+	if game.CheckCollisions(x, y) {
+		return Errors.InvalidPlacement
+	}
+
+	i := slices.IndexFunc(Towers, func(obj TowerObj) bool { return obj.x == x && obj.y == y })
+	if i < 0 {
+		return Errors.TowerNotExists
+	}
+	tower := Towers[i]
+
+	for offsetY := range (tower.fireRange * 2) + 1 {
+		for offsetX := range (tower.fireRange * 2) + 1 {
+			tower.effectiveRange = append(tower.effectiveRange, game.GetCollisionRoads(x+(offsetX-tower.fireRange), y+(offsetY-tower.fireRange))...)
+		}
+	}
+	slices.SortFunc(tower.effectiveRange, func(a, b *RoadObj) int { return b.Index - a.Index })
+
+	game.GS.Towers = append(game.GS.Towers, &tower)
 
 	return nil
+}
+
+func (game *Game) iterateTowers(delta time.Duration) {
+	for _, tower := range game.GS.Towers {
+		if tower.fireProgress < 1 {
+			tower.fireProgress += (float64(delta.Milliseconds()) / 1000) * tower.fireSpeedMultiplier
+		}
+		if tower.fireProgress < 1 {
+			continue
+		}
+
+		for _, road := range tower.effectiveRange {
+			enemies := game.GetCollisionEnemies(road.x, road.y)
+			i := slices.IndexFunc(enemies, func(obj *EnemyObj) bool { return obj.startDelay > 0 })
+			if i < 0 {
+				continue
+			}
+			enemies[i].health -= min(enemies[0].health, tower.damage)
+			tower.fireProgress -= 1
+
+			if enemies[i].health <= 0 {
+				game.GS.Enemies = slices.DeleteFunc(game.GS.Enemies, func(obj *EnemyObj) bool { return obj.UID == enemies[i].UID })
+			}
+			break
+		}
+	}
 }
 
 func (game *Game) iterateEnemies(delta time.Duration) {
@@ -366,17 +366,7 @@ func (game *Game) iterateEnemies(delta time.Duration) {
 	}
 	slices.Reverse(toPop)
 	for _, i := range toPop {
-		// game.GS.Enemies = slices.Delete(game.GS.Enemies, i, i+1)
-		game.GS.Enemies = append(game.GS.Enemies[:i], game.GS.Enemies[i+1:]...)
-	}
-
-	if len(game.GS.Enemies) <= 0 {
-		game.GS.Phase = "building"
-	}
-
-	if game.GS.Health <= 0 {
-		game.GS.Phase = "lost"
-		return
+		game.GS.Enemies = slices.Delete(game.GS.Enemies, i, i+1)
 	}
 }
 
@@ -386,6 +376,15 @@ func (game *Game) Iterate(delta time.Duration) {
 	}
 
 	if game.GS.Phase == "defending" {
+		game.iterateTowers(delta)
 		game.iterateEnemies(delta)
+
+		if len(game.GS.Enemies) <= 0 {
+			game.GS.Phase = "building"
+		}
+		if game.GS.Health <= 0 {
+			game.GS.Phase = "lost"
+			return
+		}
 	}
 }
