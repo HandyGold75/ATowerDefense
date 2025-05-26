@@ -27,8 +27,12 @@ type (
 	TowerObj struct {
 		x, y  int
 		color color
+		// Unique identifier
+		UID int
 		// Tower name
 		Name string
+		// Cost of the tower.
+		Cost int
 		// Damage multiplier.
 		damage int
 		// Targeting range in tiles.
@@ -49,6 +53,8 @@ type (
 		//
 		// Every 1 progress represents 1 tile moved.
 		Progress float64
+		// Amount of coins given once defeated.
+		reward int
 		// Despawn when <= 0.
 		health int
 		// Delay spawning by this compared to phase start in ms.
