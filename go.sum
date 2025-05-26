@@ -1,7 +1,7 @@
-github.com/HandyGold75/GOLib/argp v0.0.0-20250519123608-55bc06b1fc93 h1:LURCktEak7yuZ4oKN8143OG2WwGoPLqXcUDoi4FaxKE=
-github.com/HandyGold75/GOLib/argp v0.0.0-20250519123608-55bc06b1fc93/go.mod h1:7LP3MYxUTb+Arz5+50xPWHjrNlMeaI5RUe5wXK+hPfw=
-github.com/HandyGold75/GOLib/tui v0.0.0-20250519123608-55bc06b1fc93 h1:obc6rdPnfOj7VbStd5JGpkGc1k6CvXWNdaZonpHfYuo=
-github.com/HandyGold75/GOLib/tui v0.0.0-20250519123608-55bc06b1fc93/go.mod h1:NlkgXyWyRivxGBmRk0FCwkYcUDg4lElE/IDNC6E6QkU=
+github.com/HandyGold75/GOLib/argp v0.0.0-20250520122752-31a354a3b747 h1:mZxoMdpxU/b6Ue1dATHsvP/rj9LKLkCZgm0DrUoNKSg=
+github.com/HandyGold75/GOLib/argp v0.0.0-20250520122752-31a354a3b747/go.mod h1:7LP3MYxUTb+Arz5+50xPWHjrNlMeaI5RUe5wXK+hPfw=
+github.com/HandyGold75/GOLib/tui v0.0.0-20250520122752-31a354a3b747 h1:tbzfmD+EZN3WC7VB0WhN4LdUYWvHusQUEzwSTjIoWrI=
+github.com/HandyGold75/GOLib/tui v0.0.0-20250520122752-31a354a3b747/go.mod h1:NlkgXyWyRivxGBmRk0FCwkYcUDg4lElE/IDNC6E6QkU=
 golang.org/x/sys v0.33.0 h1:q3i8TbbEz+JRD9ywIRlyRAQbM0qF7hu24q3teo2hbuw=
 golang.org/x/sys v0.33.0/go.mod h1:BJP2sWEmIv4KK5OTEluFJCKSidICx8ciO85XgH3Ak8k=
 golang.org/x/term v0.32.0 h1:DR4lr0TjUs3epypdhTOkMmuF5CDFJ/8pOnbzMZPQ7bg=
