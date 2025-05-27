@@ -10,7 +10,12 @@ import (
 type (
 	color string
 
-	gameErrors struct{ GameStateNotWaiting, GameStateNotActive, GamePhaseNotBuilding, InvalidPlacement, InvalidSelection, TowerNotExists, InsufficientFunds error }
+	gameErrors struct {
+		GameStateNotWaiting, GameStateNotActive, GamePhaseNotBuilding,
+		InvalidPlacement, InvalidSelection, InvalidPlayer,
+		TowerNotExists,
+		InsufficientFunds error
+	}
 
 	GameConfig struct {
 		// Valid modes: `singleplayer`, `multiplayer`, `server`
@@ -25,17 +30,21 @@ type (
 		State string
 		// Valid phases: `building`, `defending`, `lost`
 		Phase     string
-		Health    int
-		Coins     int
 		Round     int
+		Health    int
 		Obstacles []*ObstacleObj
 		Roads     []*RoadObj
 		Towers    []*TowerObj
 		Enemies   []*EnemyObj
 	}
+	Player struct {
+		Index int
+		Coins int
+	}
 	Game struct {
-		GC GameConfig
-		GS GameState
+		GC      GameConfig
+		GS      GameState
+		Players []Player
 	}
 )
 
@@ -46,24 +55,25 @@ var (
 		GamePhaseNotBuilding: errors.New("game phase is not building"),
 		InvalidPlacement:     errors.New("object is placed invalid"),
 		InvalidSelection:     errors.New("selection is invalid"),
+		InvalidPlayer:        errors.New("player is invalid"),
 		TowerNotExists:       errors.New("tower does not exists"),
 		InsufficientFunds:    errors.New("not enough funds"),
 	}
 
 	Towers = []TowerObj{
 		{
-			x: 0, y: 0,
-			color:               BGGreen + Black,
+			x: 0, y: 0, color: BGGreen + Black,
+			UID:                 -1,
 			Name:                "Basic",
-			Cost:                20,
+			Cost:                25,
 			damage:              1,
 			fireRange:           3,
 			fireProgress:        0.0,
 			fireSpeedMultiplier: 1.0,
 			effectiveRange:      []*RoadObj{},
 		}, {
-			x: 0, y: 0,
-			color:               BGGreen + Black,
+			x: 0, y: 0, color: BGGreen + Black,
+			UID:                 -1,
 			Name:                "LongRange",
 			Cost:                30,
 			damage:              1,
@@ -72,8 +82,8 @@ var (
 			fireSpeedMultiplier: 0.75,
 			effectiveRange:      []*RoadObj{},
 		}, {
-			x: 0, y: 0,
-			color:               BGGreen + Black,
+			x: 0, y: 0, color: BGGreen + Black,
+			UID:                 -1,
 			Name:                "Fast",
 			Cost:                40,
 			damage:              1,
@@ -82,10 +92,10 @@ var (
 			fireSpeedMultiplier: 1.75,
 			effectiveRange:      []*RoadObj{},
 		}, {
-			x: 0, y: 0,
-			color:               BGGreen + Black,
+			x: 0, y: 0, color: BGGreen + Black,
+			UID:                 -1,
 			Name:                "Strong",
-			Cost:                40,
+			Cost:                50,
 			damage:              3,
 			fireRange:           2,
 			fireProgress:        0.0,
@@ -150,14 +160,14 @@ func NewGame(gc GameConfig) *Game {
 		GS: GameState{
 			State:     "waiting",
 			Phase:     "building",
-			Health:    100,
-			Coins:     100,
 			Round:     0,
+			Health:    100,
 			Obstacles: []*ObstacleObj{},
 			Roads:     []*RoadObj{},
 			Towers:    []*TowerObj{},
 			Enemies:   []*EnemyObj{},
 		},
+		Players: []Player{},
 	}
 }
 
@@ -208,8 +218,7 @@ func (game *Game) genRoads() {
 		}
 
 		game.GS.Roads = append(game.GS.Roads, &RoadObj{
-			x: oldX, y: oldY,
-			color:     BGGreen + White,
+			x: oldX, y: oldY, color: BGGreen + White,
 			Index:     index,
 			Direction: dir,
 		})
@@ -225,10 +234,7 @@ func (game *Game) genObstacles() {
 			continue
 		}
 
-		game.GS.Obstacles = append(game.GS.Obstacles, &ObstacleObj{
-			x: x, y: y,
-			color: BGBrightYellow + BrightBlue,
-		})
+		game.GS.Obstacles = append(game.GS.Obstacles, &ObstacleObj{x: x, y: y, color: BGBrightYellow + BrightBlue})
 	}
 }
 
@@ -243,8 +249,7 @@ func (game *Game) genEnemies() {
 		for i := range 15 * r {
 			uid += 1
 			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
-				x: x, y: y,
-				color:           BGGreen + Red,
+				x: x, y: y, color: BGGreen + Red,
 				UID:             uid,
 				Progress:        0.0,
 				reward:          1,
@@ -257,8 +262,7 @@ func (game *Game) genEnemies() {
 		for i := range 10 * r {
 			uid += 1
 			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
-				x: x, y: y,
-				color:           BGGreen + Red,
+				x: x, y: y, color: BGGreen + Red,
 				UID:             uid,
 				Progress:        0.0,
 				reward:          1,
@@ -271,11 +275,10 @@ func (game *Game) genEnemies() {
 		for i := range 5 * r {
 			uid += 1
 			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
-				x: x, y: y,
-				color:           BGGreen + Red,
+				x: x, y: y, color: BGGreen + Red,
 				UID:             uid,
 				Progress:        0.0,
-				reward:          5,
+				reward:          3,
 				health:          10,
 				startDelay:      i * 1000,
 				speedMultiplier: 0.5,
@@ -285,8 +288,7 @@ func (game *Game) genEnemies() {
 		for i := range 5 * r {
 			uid += 1
 			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
-				x: x, y: y,
-				color:           BGGreen + Red,
+				x: x, y: y, color: BGGreen + Red,
 				UID:             uid,
 				Progress:        0.0,
 				reward:          2,
@@ -299,8 +301,7 @@ func (game *Game) genEnemies() {
 		for i := range 10 * r {
 			uid += 1
 			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
-				x: x, y: y,
-				color:           BGGreen + Red,
+				x: x, y: y, color: BGGreen + Red,
 				UID:             uid,
 				Progress:        0.0,
 				reward:          3,
@@ -313,17 +314,25 @@ func (game *Game) genEnemies() {
 		for i := range 15 * r {
 			uid += 1
 			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
-				x: x, y: y,
-				color:           BGGreen + Red,
+				x: x, y: y, color: BGGreen + Red,
 				UID:             uid,
 				Progress:        0.0,
-				reward:          int(float64(r) / 2),
+				reward:          int(float64(r) / 10),
 				health:          r,
 				startDelay:      i * max(10, 250-(r*10)),
 				speedMultiplier: 1.0 + (float64(r) / 10),
 			})
 		}
 	}
+}
+
+func (game *Game) AddPlayer() int {
+	index := len(game.Players)
+	game.Players = append(game.Players, Player{
+		Index: index,
+		Coins: 80,
+	})
+	return index
 }
 
 func (game *Game) Start() error {
@@ -347,15 +356,13 @@ func (game *Game) Stop() error {
 	return nil
 }
 
-func (game *Game) TogglePause() error {
-	if game.GS.State == "started" {
+func (game *Game) TogglePause() {
+	switch game.GS.State {
+	case "started":
 		game.GS.State = "paused"
-		return nil
-	} else if game.GS.State == "paused" {
+	case "paused":
 		game.GS.State = "started"
-		return nil
 	}
-	return Errors.GameStateNotActive
 }
 
 func (game *Game) StartRound() error {
@@ -372,11 +379,14 @@ func (game *Game) StartRound() error {
 	return nil
 }
 
-func (game *Game) PlaceTower(name string, x, y int) error {
+func (game *Game) PlaceTower(name string, x, y, pid int) error {
 	if game.GS.State != "started" && game.GS.State != "paused" {
 		return Errors.GameStateNotActive
 	} else if game.GS.Phase != "building" {
 		return Errors.GamePhaseNotBuilding
+	}
+	if pid < 0 || pid >= len(game.Players) {
+		return Errors.InvalidPlayer
 	}
 	if game.CheckCollisions(x, y) {
 		return Errors.InvalidPlacement
@@ -388,12 +398,13 @@ func (game *Game) PlaceTower(name string, x, y int) error {
 	}
 	tower := Towers[i]
 
-	if tower.Cost > game.GS.Coins {
+	if tower.Cost > game.Players[pid].Coins {
 		return Errors.InsufficientFunds
 	}
-	game.GS.Coins -= tower.Cost
+	game.Players[pid].Coins -= tower.Cost
 
-	tower.x, tower.y = x, y
+	uid += 1
+	tower.x, tower.y, tower.UID, tower.Owner = x, y, uid, pid
 	for offsetY := range (tower.fireRange * 2) + 1 {
 		for offsetX := range (tower.fireRange * 2) + 1 {
 			tower.effectiveRange = append(tower.effectiveRange, game.GetCollisionRoads(x+(offsetX-tower.fireRange), y+(offsetY-tower.fireRange))...)
@@ -406,18 +417,24 @@ func (game *Game) PlaceTower(name string, x, y int) error {
 	return nil
 }
 
-func (game *Game) DestoryTower(x, y int) error {
+func (game *Game) DestoryTower(x, y, pid int) error {
 	if game.GS.State != "started" && game.GS.State != "paused" {
 		return Errors.GameStateNotActive
 	} else if game.GS.Phase != "building" {
 		return Errors.GamePhaseNotBuilding
 	}
+	if pid < 0 || pid >= len(game.Players) {
+		return Errors.InvalidPlayer
+	}
 	towers := game.GetCollisionTowers(x, y)
 	if len(towers) != 1 {
 		return Errors.InvalidSelection
 	}
+	if towers[0].Owner != pid {
+		return Errors.InvalidPlayer
+	}
 
-	game.GS.Coins += towers[0].Cost / 2
+	game.Players[pid].Coins += towers[0].Cost / 2
 	game.GS.Towers = slices.DeleteFunc(game.GS.Towers, func(obj *TowerObj) bool { return obj.UID == towers[0].UID })
 
 	return nil
@@ -442,7 +459,7 @@ func (game *Game) iterateTowers(delta time.Duration) {
 			tower.fireProgress -= 1
 
 			if enemies[i].health <= 0 {
-				game.GS.Coins += enemies[i].reward
+				game.Players[max(len(game.Players)-1, tower.Owner)].Coins += enemies[i].reward
 				game.GS.Enemies = slices.DeleteFunc(game.GS.Enemies, func(obj *EnemyObj) bool { return obj.UID == enemies[i].UID })
 			}
 			break
@@ -486,7 +503,7 @@ func (game *Game) Iterate(delta time.Duration) {
 		if len(game.GS.Enemies) <= 0 {
 			game.GS.Phase = "building"
 		}
-		if game.GS.Health <= 0 {
+		if game.GS.Health <= 0 || len(game.Players) <= 0 {
 			game.GS.Round = max(game.GS.Round-1, 0)
 			game.GS.Phase = "lost"
 			return

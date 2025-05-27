@@ -33,6 +33,8 @@ type (
 		Name string
 		// Cost of the tower.
 		Cost int
+		// Owner of the tower by player index.
+		Owner int
 		// Damage multiplier.
 		damage int
 		// Targeting range in tiles.
@@ -49,8 +51,6 @@ type (
 		color color
 		// Unique identifier
 		UID int
-		// Progress of the enemy.
-		//
 		// Every 1 progress represents 1 tile moved.
 		Progress float64
 		// Amount of coins given once defeated.
