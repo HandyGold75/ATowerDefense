@@ -27,6 +27,8 @@ var (
 	viewOffsetX, viewOffsetY = 0, 0
 	selectedTower            = 0
 
+	pid = 0
+
 	tickDelay  = time.Millisecond * 50
 	lagTracker = time.Duration(0)
 
@@ -101,15 +103,16 @@ func handleInput(gm *game.Game) error {
 	if keyBindContains(KeyBinds.Exit, in) {
 		return Errors.Exit
 	} else if keyBindContains(KeyBinds.Pause, in) {
-		return gm.TogglePause()
+		gm.TogglePause()
+		return nil
 	} else if keyBindContains(KeyBinds.Confirm, in) {
 		if len(game.Towers) < selectedTower {
 			return nil
 		}
-		err := gm.PlaceTower(game.Towers[selectedTower].Name, selectedX, selectedY)
+		err := gm.PlaceTower(game.Towers[selectedTower].Name, selectedX, selectedY, pid)
 		if err != nil {
 			if err == game.Errors.InvalidPlacement {
-				return gm.DestoryTower(selectedX, selectedY)
+				return gm.DestoryTower(selectedX, selectedY, pid)
 			}
 			return err
 		}
@@ -117,33 +120,33 @@ func handleInput(gm *game.Game) error {
 	} else if keyBindContains(KeyBinds.Delete, in) {
 		return gm.StartRound()
 	} else if keyBindContains(KeyBinds.Up, in) {
-		selectedY = max(selectedY-1, 0)
+		selectedY = max(selectedY-1, max(0, viewOffsetY))
 		return nil
 	} else if keyBindContains(KeyBinds.Down, in) {
-		selectedY = min(selectedY+1, gm.GC.FieldHeight-1)
+		selectedY = min(selectedY+1, min(gm.GC.FieldHeight, min(maxHeight, gm.GC.FieldHeight)+viewOffsetY)-1)
 		return nil
 	} else if keyBindContains(KeyBinds.Right, in) {
-		selectedX = min(selectedX+1, gm.GC.FieldWidth-1)
+		selectedX = min(selectedX+1, min(gm.GC.FieldWidth, min(maxWidth, gm.GC.FieldWidth)+viewOffsetX)-1)
 		return nil
 	} else if keyBindContains(KeyBinds.Left, in) {
-		selectedX = max(selectedX-1, 0)
+		selectedX = max(selectedX-1, max(0, viewOffsetX))
 		return nil
 
 	} else if keyBindContains(KeyBinds.PanUp, in) {
 		viewOffsetY = max(viewOffsetY-1, -5)
-		selectedY = max(selectedY-1, 0)
+		selectedY = max(selectedY-1, max(0, viewOffsetY))
 		return nil
 	} else if keyBindContains(KeyBinds.PanDown, in) {
-		viewOffsetY = min(viewOffsetY+1, (gm.GC.FieldHeight-min(maxHeight, gm.GC.FieldHeight))+5)
-		selectedY = min(selectedY+1, gm.GC.FieldHeight-1)
+		viewOffsetY = min(viewOffsetY+1, (gm.GC.FieldHeight-min(maxHeight, gm.GC.FieldHeight))+6)
+		selectedY = min(selectedY+1, (gm.GC.FieldHeight+min(0, viewOffsetY))-1)
 		return nil
 	} else if keyBindContains(KeyBinds.PanRight, in) {
-		viewOffsetX = min(viewOffsetX+1, (gm.GC.FieldWidth-min(int(maxWidth/2), gm.GC.FieldWidth))+5)
-		selectedX = min(selectedX+1, gm.GC.FieldWidth-1)
+		viewOffsetX = min(viewOffsetX+1, (gm.GC.FieldWidth-min(maxWidth, gm.GC.FieldWidth))+5)
+		selectedX = min(selectedX+1, (gm.GC.FieldWidth+min(0, viewOffsetX))-1)
 		return nil
 	} else if keyBindContains(KeyBinds.PanLeft, in) {
 		viewOffsetX = max(viewOffsetX-1, -5)
-		selectedX = max(selectedX-1, 0)
+		selectedX = max(selectedX-1, max(0, viewOffsetX))
 		return nil
 
 	} else if keyBindContains(KeyBinds.Plus, in) {
@@ -162,20 +165,20 @@ func handleInput(gm *game.Game) error {
 }
 
 func drawField(gm *game.Game) {
-	fmt.Print("\033[0;0H")
+	fmt.Print("\033[2;0H")
 	for y := range min(gm.GC.FieldHeight, maxHeight) {
 		if y != 0 {
 			fmt.Print("\r\n")
 		}
 		if y+viewOffsetY < 0 || y+viewOffsetY >= gm.GC.FieldHeight {
-			fmt.Print(strings.Repeat(string(game.BGBrightBlack+"  "+game.Reset), min(gm.GC.FieldWidth, int(maxWidth/2))))
+			fmt.Print(strings.Repeat(string(game.BGBrightBlack+"  "+game.Reset), min(gm.GC.FieldWidth, maxWidth)))
 			continue
 		}
-		for x := range min(gm.GC.FieldWidth, int(maxWidth/2)) {
+		for x := range min(gm.GC.FieldWidth, maxWidth) {
 			if x+viewOffsetX < 0 || x+viewOffsetX >= gm.GC.FieldWidth {
 				fmt.Print(game.BGBrightBlack + "  " + game.Reset)
 			} else if x+viewOffsetX == selectedX && y+viewOffsetY == selectedY {
-				fmt.Print(game.BGBrightBlack + "" + game.Reset)
+				fmt.Print(game.BGGreen + game.Black + "" + game.Reset)
 			} else if obj := gm.GetCollisions(x+viewOffsetX, y+viewOffsetY); len(obj) > 0 {
 				switch obj[len(obj)-1].Type() {
 				case "Obstacle":
@@ -226,34 +229,38 @@ func drawField(gm *game.Game) {
 }
 
 func drawUI(gm *game.Game) {
-	fmt.Print("\033[0;0H" + string(game.BGBrightBlack) +
-		string(game.Red) + " [" + strconv.Itoa(gm.GS.Health) + "] " +
-		string(game.BrightWhite) + " " + gm.GS.Phase + " ")
+	state := gm.GS.Phase
 	if gm.GS.State == "paused" {
-		fmt.Print(string(game.BrightWhite) + "[p] ")
+		state += " [p]"
 	}
+	phase := "R:" + strconv.Itoa(gm.GS.Round+1)
 	if gm.GS.Phase == "defending" {
-		fmt.Print(string(game.BrightWhite) + "(E:" + strconv.Itoa(len(gm.GS.Enemies)) + ") ")
-	} else {
-		fmt.Print(string(game.BrightWhite) + "(R:" + strconv.Itoa(gm.GS.Round+1) + ") ")
+		phase = "E:" + strconv.Itoa(len(gm.GS.Enemies))
 	}
-	fmt.Print(string(game.BrightYellow) + strconv.Itoa(gm.GS.Coins) + " ")
+	msgLen := len(state) + len(phase) + 1
+	msgLeft := fmt.Sprintf(string(game.BrightWhite)+"%v %v", state, phase)
 
+	lag := strconv.FormatInt(lagTracker.Milliseconds(), 10)
 	if lagTracker >= tickDelay {
-		fmt.Print(string(game.Red) + strconv.FormatInt(lagTracker.Milliseconds(), 10) + " ")
-	} else {
-		fmt.Print(string(game.White) + strconv.FormatInt(lagTracker.Milliseconds(), 10) + " ")
+		msgLen -= 4
+		lag = string(game.Red) + lag
 	}
+	msgLen += len(lag) + len(strconv.Itoa(gm.Players[pid].Coins)) + len(strconv.Itoa(gm.GS.Health)) + 2
+	msgRight := fmt.Sprintf(string(game.White)+"%v "+
+		string(game.BrightYellow)+"%v "+
+		string(game.BrightRed)+"%v", lag, gm.Players[pid].Coins, gm.GS.Health)
 
-	fmt.Print(string(game.Reset))
+	fmt.Printf("\033[0;0H"+string(game.BGBrightBlack)+"%v"+strings.Repeat(" ", max(1, min(gm.GC.FieldWidth*2, maxWidth*2)-msgLen))+"%v"+string(game.Reset), msgLeft, msgRight)
 
-	if maxWidth*2 > gm.GC.FieldWidth {
+	if maxWidth > gm.GC.FieldWidth+10 && maxHeight+1 >= len(game.Towers) {
 		for i, tower := range game.Towers {
 			fmt.Print("\033[" + strconv.Itoa(i+1) + ";" + strconv.Itoa((gm.GC.FieldWidth*2)+1) + "H")
+			msgLeft := tower.Name
+			msgRight := "(" + strconv.Itoa(tower.Cost) + ")"
 			if i == selectedTower {
-				fmt.Print(string(game.BGWhite+game.Black) + tower.Name + " (" + strconv.Itoa(tower.Cost) + ")" + string(game.Reset))
+				fmt.Print(string(game.BGWhite+game.Black) + msgLeft + strings.Repeat(" ", max(0, 20-len(msgLeft)-len(msgRight))) + msgRight + string(game.Reset))
 			} else {
-				fmt.Print(string(game.BGBlack+game.White) + tower.Name + " (" + strconv.Itoa(tower.Cost) + ")" + string(game.Reset))
+				fmt.Print(string(game.BGBlack+game.White) + msgLeft + strings.Repeat(" ", max(0, 20-len(msgLeft)-len(msgRight))) + msgRight + string(game.Reset))
 			}
 		}
 	}
@@ -265,7 +272,7 @@ func visualize(gm *game.Game) error {
 	if err != nil {
 		return err
 	}
-	maxWidth, maxHeight = mw, mh
+	maxWidth, maxHeight = int(mw/2), mh-1
 
 	drawField(gm)
 	drawUI(gm)
@@ -288,12 +295,13 @@ func Run(gc game.GameConfig) error {
 	if err != nil {
 		return nil
 	}
-	maxWidth, maxHeight = mw, mh
+	maxWidth, maxHeight = int(mw/2), mh-1
 
 	gm := game.NewGame(gc)
 	if err := gm.Start(); err != nil {
 		return err
 	}
+	pid = gm.AddPlayer()
 
 	go func() {
 		defer func() { _ = term.Restore(int(os.Stdin.Fd()), oldState); _ = gm.Stop() }()
