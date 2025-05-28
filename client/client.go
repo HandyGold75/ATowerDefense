@@ -224,7 +224,13 @@ func Run(gc game.GameConfig, debug bool) error {
 		if !debug {
 			gm.Iterate(time.Since(last))
 
-			if err := drawTui(gm); err != nil {
+			// if err := drawTui(gm); err != nil {
+			// 	gm.GS.State = "stopped"
+			// 	fmt.Println(err)
+			// 	break
+			// }
+
+			if err := drawOpenGL(gm); err != nil {
 				gm.GS.State = "stopped"
 				fmt.Println(err)
 				break
