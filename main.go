@@ -3,6 +3,7 @@ package main
 import (
 	"ATowerDefense/client"
 	"ATowerDefense/game"
+	"ATowerDefense/server"
 	"fmt"
 	"os"
 	"strconv"
@@ -16,6 +17,7 @@ var args = argp.ParseArgs(struct {
 	Server bool   `switch:"s,-server"                  help:"Start as a server instace."`
 	IP     string `switch:"i,-ip" default:"0.0.0.0"    help:"Listen on this ip when started as server."`
 	Port   uint16 `switch:"p,-port" default:"17540"    help:"Listen on this port when started as server."`
+	Debug  bool   `switch:"d,-debug"                   help:"Debug switch"`
 }{})
 
 func menu() (gc game.GameConfig, err error) {
@@ -57,13 +59,13 @@ func menu() (gc game.GameConfig, err error) {
 }
 
 func main() {
-	// if args.Server {
-	// 	if err := server.Run(args.IP, args.Port); err != nil {
-	// 		fmt.Println(err)
-	// 		os.Exit(1)
-	// 	}
-	// 	os.Exit(0)
-	// }
+	if args.Server {
+		if err := server.Run(args.IP, args.Port); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	// gc, err := menu()
 	// if err != nil {
@@ -71,18 +73,15 @@ func main() {
 	// 	os.Exit(1)
 	// }
 
-	// if err := client.Run(gc); err != nil {
-	// 	fmt.Println(err)
-	// 	os.Exit(1)
-	// }
-
-	if err := client.Run(game.GameConfig{
+	gc := game.GameConfig{
 		Mode:        "singleplayer",
 		IP:          "84.25.253.77",
 		Port:        17540,
 		FieldHeight: 50,
 		FieldWidth:  50,
-	}); err != nil {
+	}
+
+	if err := client.Run(gc, args.Debug); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
