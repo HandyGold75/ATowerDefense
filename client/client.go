@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"strconv"
-	"strings"
 	"time"
 
 	"golang.org/x/term"
@@ -18,8 +16,15 @@ type (
 
 	charSet string
 
-	keybinds struct{ Up, Down, Right, Left, PanUp, PanDown, PanRight, PanLeft, Plus, Minus, Exit, Pause, Confirm, Delete, Numbers []keybind }
-	keybind  []byte
+	keybinds struct {
+		Exit, Pause, Confirm, Delete,
+		Up, Down, Right, Left,
+		PanUp, PanDown, PanRight, PanLeft,
+		SquereBracketLeft, SquereBracketRight,
+		Plus, Minus,
+		Numbers []keybind
+	}
+	keybind []byte
 )
 
 var (
@@ -62,9 +67,14 @@ var (
 		// LEFT,
 		PanLeft: []keybind{{27, 91, 68}},
 
-		// PLUS
+		// [
+		SquereBracketLeft: []keybind{{91, 0, 0}},
+		// ]
+		SquereBracketRight: []keybind{{93, 0, 0}},
+
+		// +
 		Plus: []keybind{{43, 0, 0}},
-		// MINUS
+		// -
 		Minus: []keybind{{45, 0, 0}},
 
 		// 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
@@ -94,7 +104,7 @@ func keyBindIndex(kb []keybind, b []byte) int {
 	return slices.IndexFunc(kb, func(v keybind) bool { return slices.Equal(v, b) })
 }
 
-func handleInput(gm *game.Game) error {
+func handleInput(gm *game.Game, debug bool) error {
 	in := make([]byte, 3)
 	if _, err := os.Stdin.Read(in); err != nil {
 		return err
@@ -102,6 +112,9 @@ func handleInput(gm *game.Game) error {
 
 	if keyBindContains(KeyBinds.Exit, in) {
 		return Errors.Exit
+	} else if debug {
+		fmt.Printf("\033[2J\033[0;0H%v", in)
+		return nil
 	} else if keyBindContains(KeyBinds.Pause, in) {
 		gm.TogglePause()
 		return nil
@@ -149,13 +162,17 @@ func handleInput(gm *game.Game) error {
 		selectedX = max(selectedX-1, max(0, viewOffsetX))
 		return nil
 
-	} else if keyBindContains(KeyBinds.Plus, in) {
-		selectedTower = min(selectedTower+1, len(game.Towers)-1)
-		return nil
-	} else if keyBindContains(KeyBinds.Minus, in) {
+	} else if keyBindContains(KeyBinds.SquereBracketLeft, in) {
 		selectedTower = max(selectedTower-1, 0)
 		return nil
+	} else if keyBindContains(KeyBinds.SquereBracketRight, in) {
+		selectedTower = min(selectedTower+1, len(game.Towers)-1)
+		return nil
 
+	} else if keyBindContains(KeyBinds.Plus, in) {
+		return nil
+	} else if keyBindContains(KeyBinds.Minus, in) {
+		return nil
 	} else if i := keyBindIndex(KeyBinds.Numbers, in); i >= 0 {
 		selectedTower = max(min(i, len(game.Towers)-1), 0)
 		return nil
@@ -164,124 +181,7 @@ func handleInput(gm *game.Game) error {
 	return nil
 }
 
-func drawField(gm *game.Game) {
-	fmt.Print("\033[2;0H")
-	for y := range min(gm.GC.FieldHeight, maxHeight) {
-		if y != 0 {
-			fmt.Print("\r\n")
-		}
-		if y+viewOffsetY < 0 || y+viewOffsetY >= gm.GC.FieldHeight {
-			fmt.Print(strings.Repeat(string(game.BGBrightBlack+"  "+game.Reset), min(gm.GC.FieldWidth, maxWidth)))
-			continue
-		}
-		for x := range min(gm.GC.FieldWidth, maxWidth) {
-			if x+viewOffsetX < 0 || x+viewOffsetX >= gm.GC.FieldWidth {
-				fmt.Print(game.BGBrightBlack + "  " + game.Reset)
-			} else if x+viewOffsetX == selectedX && y+viewOffsetY == selectedY {
-				fmt.Print(game.BGGreen + game.Black + "" + game.Reset)
-			} else if obj := gm.GetCollisions(x+viewOffsetX, y+viewOffsetY); len(obj) > 0 {
-				switch obj[len(obj)-1].Type() {
-				case "Obstacle":
-					fmt.Print(obj[len(obj)-1].Color() + "" + game.Reset)
-
-				case "Road":
-					if obj[len(obj)-1].(*game.RoadObj).Index == 0 {
-						fmt.Print(obj[len(obj)-1].Color() + game.BrightBlack + " 󰮢" + game.Reset)
-						continue
-					} else if obj[len(obj)-1].(*game.RoadObj).Index == len(gm.GS.Roads)-1 {
-						fmt.Print(obj[len(obj)-1].Color() + game.BrightBlack + " 󰄚" + game.Reset)
-						continue
-					}
-
-					switch obj[len(obj)-1].(*game.RoadObj).Direction {
-					case "up":
-						fmt.Print(obj[len(obj)-1].Color() + " " + game.Reset)
-					case "right":
-						fmt.Print(obj[len(obj)-1].Color() + " " + game.Reset)
-					case "down":
-						fmt.Print(obj[len(obj)-1].Color() + " " + game.Reset)
-					case "left":
-						fmt.Print(obj[len(obj)-1].Color() + " " + game.Reset)
-					default:
-						fmt.Print(obj[len(obj)-1].Color() + "?" + game.Reset)
-					}
-
-				case "Tower":
-					fmt.Print(obj[len(obj)-1].Color() + " 󰚁" + game.Reset)
-
-				case "Enemy":
-					roadX, roadY := gm.GS.Roads[0].Cord()
-					enemyX, enemyY := obj[len(obj)-1].Cord()
-					if enemyX == roadX && enemyY == roadY {
-						fmt.Print(obj[len(obj)-1].Color() + game.BrightBlack + " 󰮢" + game.Reset)
-						continue
-					}
-					fmt.Print(obj[len(obj)-1].Color() + " " + game.Reset)
-
-				default:
-					fmt.Print(obj[len(obj)-1].Color() + "??" + game.Reset)
-				}
-			} else {
-				fmt.Print(game.Green + "██" + game.Reset)
-			}
-		}
-	}
-}
-
-func drawUI(gm *game.Game) {
-	state := gm.GS.Phase
-	if gm.GS.State == "paused" {
-		state += " [p]"
-	}
-	phase := "R:" + strconv.Itoa(gm.GS.Round+1)
-	if gm.GS.Phase == "defending" {
-		phase = "E:" + strconv.Itoa(len(gm.GS.Enemies))
-	}
-	msgLen := len(state) + len(phase) + 1
-	msgLeft := fmt.Sprintf(string(game.BrightWhite)+"%v %v", state, phase)
-
-	lag := strconv.FormatInt(lagTracker.Milliseconds(), 10)
-	if lagTracker >= tickDelay {
-		msgLen -= 4
-		lag = string(game.Red) + lag
-	}
-	msgLen += len(lag) + len(strconv.Itoa(gm.Players[pid].Coins)) + len(strconv.Itoa(gm.GS.Health)) + 2
-	msgRight := fmt.Sprintf(string(game.White)+"%v "+
-		string(game.BrightYellow)+"%v "+
-		string(game.BrightRed)+"%v", lag, gm.Players[pid].Coins, gm.GS.Health)
-
-	fmt.Printf("\033[0;0H"+string(game.BGBrightBlack)+"%v"+strings.Repeat(" ", max(1, min(gm.GC.FieldWidth*2, maxWidth*2)-msgLen))+"%v"+string(game.Reset), msgLeft, msgRight)
-
-	if maxWidth > gm.GC.FieldWidth+10 && maxHeight+1 >= len(game.Towers) {
-		for i, tower := range game.Towers {
-			fmt.Print("\033[" + strconv.Itoa(i+1) + ";" + strconv.Itoa((gm.GC.FieldWidth*2)+1) + "H")
-			msgLeft := tower.Name
-			msgRight := "(" + strconv.Itoa(tower.Cost) + ")"
-			if i == selectedTower {
-				fmt.Print(string(game.BGWhite+game.Black) + msgLeft + strings.Repeat(" ", max(0, 20-len(msgLeft)-len(msgRight))) + msgRight + string(game.Reset))
-			} else {
-				fmt.Print(string(game.BGBlack+game.White) + msgLeft + strings.Repeat(" ", max(0, 20-len(msgLeft)-len(msgRight))) + msgRight + string(game.Reset))
-			}
-		}
-	}
-}
-
-func visualize(gm *game.Game) error {
-	fmt.Print("\033[2J")
-	mw, mh, err := term.GetSize(int(os.Stdin.Fd()))
-	if err != nil {
-		return err
-	}
-	maxWidth, maxHeight = int(mw/2), mh-1
-
-	drawField(gm)
-	drawUI(gm)
-
-	fmt.Print("\033[" + strconv.Itoa(maxHeight) + ";" + strconv.Itoa(maxWidth*2) + "H")
-	return nil
-}
-
-func Run(gc game.GameConfig) error {
+func Run(gc game.GameConfig, debug bool) error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return Errors.NotATerm
 	}
@@ -307,7 +207,7 @@ func Run(gc game.GameConfig) error {
 		defer func() { _ = term.Restore(int(os.Stdin.Fd()), oldState); _ = gm.Stop() }()
 
 		for {
-			err := handleInput(gm)
+			err := handleInput(gm, debug)
 			if err != nil {
 				if err == Errors.Exit {
 					gm.GS.State = "stopped"
@@ -321,11 +221,14 @@ func Run(gc game.GameConfig) error {
 	for gm.GS.State != "stopped" {
 		now := time.Now()
 
-		gm.Iterate(time.Since(last))
-		if err := visualize(gm); err != nil {
-			gm.GS.State = "stopped"
-			fmt.Println(err)
-			break
+		if !debug {
+			gm.Iterate(time.Since(last))
+
+			if err := drawTui(gm); err != nil {
+				gm.GS.State = "stopped"
+				fmt.Println(err)
+				break
+			}
 		}
 
 		last = now
