@@ -181,7 +181,7 @@ func handleInput(gm *game.Game, debug bool) error {
 	return nil
 }
 
-func Run(gc game.GameConfig, debug bool) error {
+func Run(gc game.GameConfig, renderer string, debug bool) error {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return Errors.NotATerm
 	}
@@ -224,16 +224,19 @@ func Run(gc game.GameConfig, debug bool) error {
 		if !debug {
 			gm.Iterate(time.Since(last))
 
-			// if err := drawTui(gm); err != nil {
-			// 	gm.GS.State = "stopped"
-			// 	fmt.Println(err)
-			// 	break
-			// }
-
-			if err := drawOpenGL(gm); err != nil {
-				gm.GS.State = "stopped"
-				fmt.Println(err)
-				break
+			switch renderer {
+			case "opengl":
+				if err := drawOpenGL(gm); err != nil {
+					gm.GS.State = "stopped"
+					fmt.Println(err)
+					break
+				}
+			default:
+				if err := drawTui(gm); err != nil {
+					gm.GS.State = "stopped"
+					fmt.Println(err)
+					break
+				}
 			}
 		}
 
