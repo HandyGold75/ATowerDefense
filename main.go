@@ -17,6 +17,7 @@ var args = argp.ParseArgs(struct {
 	Server bool   `switch:"s,-server"                  help:"Start as a server instace."`
 	IP     string `switch:"i,-ip" default:"0.0.0.0"    help:"Listen on this ip when started as server."`
 	Port   uint16 `switch:"p,-port" default:"17540"    help:"Listen on this port when started as server."`
+	OpenGL bool   `switch:"o,-opengl"                  help:"Use OpenGL renderer"`
 	Debug  bool   `switch:"d,-debug"                   help:"Debug switch"`
 }{})
 
@@ -81,7 +82,12 @@ func main() {
 		FieldWidth:  50,
 	}
 
-	if err := client.Run(gc, args.Debug); err != nil {
+	renderer := "tui"
+	if args.OpenGL {
+		renderer = "opengl"
+	}
+
+	if err := client.Run(gc, renderer, args.Debug); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
