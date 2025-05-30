@@ -3,3 +3,7 @@
 Just another game of Tower Defense.
 
 Works with any terminal that supports 3-bit color.
+
+## Build requirements
+
+- libsdl2-dev
