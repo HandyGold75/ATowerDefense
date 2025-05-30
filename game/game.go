@@ -14,7 +14,8 @@ type (
 		GameStateNotWaiting, GameStateNotActive, GamePhaseNotBuilding,
 		InvalidPlacement, InvalidSelection, InvalidPlayer,
 		TowerNotExists,
-		InsufficientFunds error
+		InsufficientFunds,
+		Exit error
 	}
 
 	GameConfig struct {
@@ -24,6 +25,7 @@ type (
 		Port        uint16
 		FieldHeight int
 		FieldWidth  int
+		TickDelay   time.Duration
 	}
 	GameState struct {
 		// Valid states: `waiting`, `started`, `paused`, `stopped`
@@ -58,6 +60,7 @@ var (
 		InvalidPlayer:        errors.New("player is invalid"),
 		TowerNotExists:       errors.New("tower does not exists"),
 		InsufficientFunds:    errors.New("not enough funds"),
+		Exit:                 errors.New("game is exiting"),
 	}
 
 	Towers = []TowerObj{

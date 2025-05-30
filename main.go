@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/HandyGold75/GOLib/argp"
 	"github.com/HandyGold75/GOLib/tui"
@@ -18,7 +19,6 @@ var args = argp.ParseArgs(struct {
 	IP     string `switch:"i,-ip" default:"0.0.0.0"    help:"Listen on this ip when started as server."`
 	Port   uint16 `switch:"p,-port" default:"17540"    help:"Listen on this port when started as server."`
 	OpenGL bool   `switch:"o,-opengl"                  help:"Use OpenGL renderer"`
-	Debug  bool   `switch:"d,-debug"                   help:"Debug switch"`
 }{})
 
 func menu() (gc game.GameConfig, err error) {
@@ -80,14 +80,15 @@ func main() {
 		Port:        17540,
 		FieldHeight: 50,
 		FieldWidth:  50,
+		TickDelay:   time.Millisecond * 50,
 	}
 
-	renderer := "tui"
+	handler := "tui"
 	if args.OpenGL {
-		renderer = "opengl"
+		handler = "sdl"
 	}
 
-	if err := client.Run(gc, renderer, args.Debug); err != nil {
+	if err := client.Run(gc, handler); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
