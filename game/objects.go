@@ -4,29 +4,25 @@ import "slices"
 
 type (
 	GameObj interface {
-		// Valid types: `Obstacle`, `Road`, `Tower`, `Enemy`,
+		// Valid types: `Obstacle`, `Road`, `Tower`, `Enemy`.
 		Type() string
 		// X, Y
 		Cord() (int, int)
-		// Color as a string
-		Color() color
 	}
 
 	ObstacleObj struct {
-		x, y  int
-		color color
+		x, y int
+		Name string
 	}
 	RoadObj struct {
-		x, y  int
-		color color
+		x, y int
 		// Road index
 		Index int
-		// Facing direction
-		Direction string
+		// Valid directions: `up`, `right`, `down`, `left`.
+		DirEntrance, DirExit string
 	}
 	TowerObj struct {
-		x, y  int
-		color color
+		x, y int
 		// Unique identifier
 		UID int
 		// Tower name
@@ -47,8 +43,7 @@ type (
 		effectiveRange []*RoadObj
 	}
 	EnemyObj struct {
-		x, y  int
-		color color
+		x, y int
 		// Unique identifier
 		UID int
 		// Every 1 progress represents 1 tile moved.
@@ -66,7 +61,6 @@ type (
 
 func (obj *ObstacleObj) Type() string     { return "Obstacle" }
 func (obj *ObstacleObj) Cord() (int, int) { return obj.x, obj.y }
-func (obj *ObstacleObj) Color() color     { return obj.color }
 
 func (game *Game) CheckCollisionObstacles(x, y int) bool {
 	return slices.ContainsFunc(game.GS.Obstacles, func(obj *ObstacleObj) bool { return obj.x == x && obj.y == y })
@@ -82,7 +76,6 @@ func (game *Game) GetCollisionObstacles(x, y int) []*ObstacleObj {
 
 func (obj *RoadObj) Type() string     { return "Road" }
 func (obj *RoadObj) Cord() (int, int) { return obj.x, obj.y }
-func (obj *RoadObj) Color() color     { return obj.color }
 
 func (game *Game) CheckCollisionRoads(x, y int) bool {
 	return slices.ContainsFunc(game.GS.Roads, func(obj *RoadObj) bool { return obj.x == x && obj.y == y })
@@ -98,7 +91,6 @@ func (game *Game) GetCollisionRoads(x, y int) []*RoadObj {
 
 func (obj *TowerObj) Type() string     { return "Tower" }
 func (obj *TowerObj) Cord() (int, int) { return obj.x, obj.y }
-func (obj *TowerObj) Color() color     { return obj.color }
 
 func (game *Game) CheckCollisionTowers(x, y int) bool {
 	return slices.ContainsFunc(game.GS.Towers, func(obj *TowerObj) bool { return obj.x == x && obj.y == y })
@@ -114,7 +106,6 @@ func (game *Game) GetCollisionTowers(x, y int) []*TowerObj {
 
 func (obj *EnemyObj) Type() string     { return "Enemy" }
 func (obj *EnemyObj) Cord() (int, int) { return obj.x, obj.y }
-func (obj *EnemyObj) Color() color     { return obj.color }
 
 func (game *Game) CheckCollisionEnemies(x, y int) bool {
 	return slices.ContainsFunc(game.GS.Enemies, func(obj *EnemyObj) bool { return obj.x == x && obj.y == y })

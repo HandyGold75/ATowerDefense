@@ -8,8 +8,6 @@ import (
 )
 
 type (
-	color string
-
 	gameErrors struct {
 		GameStateNotWaiting, GameStateNotActive, GamePhaseNotBuilding,
 		InvalidPlacement, InvalidSelection, InvalidPlayer,
@@ -65,8 +63,7 @@ var (
 
 	Towers = []TowerObj{
 		{
-			x: 0, y: 0, color: BGGreen + Black,
-			UID:                 -1,
+			x: 0, y: 0, UID: -1,
 			Name:                "Basic",
 			Cost:                25,
 			damage:              1,
@@ -75,8 +72,7 @@ var (
 			fireSpeedMultiplier: 1.0,
 			effectiveRange:      []*RoadObj{},
 		}, {
-			x: 0, y: 0, color: BGGreen + Black,
-			UID:                 -1,
+			x: 0, y: 0, UID: -1,
 			Name:                "LongRange",
 			Cost:                30,
 			damage:              1,
@@ -85,8 +81,7 @@ var (
 			fireSpeedMultiplier: 0.75,
 			effectiveRange:      []*RoadObj{},
 		}, {
-			x: 0, y: 0, color: BGGreen + Black,
-			UID:                 -1,
+			x: 0, y: 0, UID: -1,
 			Name:                "Fast",
 			Cost:                40,
 			damage:              1,
@@ -95,8 +90,7 @@ var (
 			fireSpeedMultiplier: 1.75,
 			effectiveRange:      []*RoadObj{},
 		}, {
-			x: 0, y: 0, color: BGGreen + Black,
-			UID:                 -1,
+			x: 0, y: 0, UID: -1,
 			Name:                "Strong",
 			Cost:                50,
 			damage:              3,
@@ -108,53 +102,6 @@ var (
 	}
 
 	uid = 0
-)
-
-const (
-	Reset color = "\033[0m"
-
-	Bold            color = "\033[1m"
-	Faint           color = "\033[2m"
-	Italic          color = "\033[3m"
-	Underline       color = "\033[4m"
-	StrikeTrough    color = "\033[9m"
-	DubbleUnderline color = "\033[21m"
-
-	Black   color = "\033[30m"
-	Red     color = "\033[31m"
-	Green   color = "\033[32m"
-	Yellow  color = "\033[33m"
-	Blue    color = "\033[34m"
-	Magenta color = "\033[35m"
-	Cyan    color = "\033[36m"
-	White   color = "\033[37m"
-
-	BGBlack   color = "\033[40m"
-	BGRed     color = "\033[41m"
-	BGGreen   color = "\033[42m"
-	BGYellow  color = "\033[43m"
-	BGBlue    color = "\033[44m"
-	BGMagenta color = "\033[45m"
-	BGCyan    color = "\033[46m"
-	BGWhite   color = "\033[47m"
-
-	BrightBlack   color = "\033[90m"
-	BrightRed     color = "\033[91m"
-	BrightGreen   color = "\033[92m"
-	BrightYellow  color = "\033[93m"
-	BrightBlue    color = "\033[94m"
-	BrightMagenta color = "\033[95m"
-	BrightCyan    color = "\033[96m"
-	BrightWhite   color = "\033[97m"
-
-	BGBrightBlack   color = "\033[100m"
-	BGBrightRed     color = "\033[101m"
-	BGBrightGreen   color = "\033[102m"
-	BGBrightYellow  color = "\033[103m"
-	BGBrightBlue    color = "\033[104m"
-	BGBrightMagenta color = "\033[105m"
-	BGBrightCyan    color = "\033[106m"
-	BGBrightWhite   color = "\033[107m"
 )
 
 func NewGame(gc GameConfig) *Game {
@@ -180,7 +127,7 @@ func (game *Game) genRoads() {
 	for range int(float64(game.GC.FieldWidth+game.GC.FieldHeight) * (1 + rand.Float64())) {
 		oldX, oldY, oldDir := x, y, dir
 
-		switch i := rand.IntN(6); {
+		switch i := rand.IntN(8); {
 		case i == 0 && dir != "down":
 			dir = "up"
 		case i == 1 && dir != "left":
@@ -213,6 +160,25 @@ func (game *Game) genRoads() {
 			if x < 0 {
 				x = game.GC.FieldWidth
 			}
+		default:
+			x, y, dir = oldX, oldY, oldDir
+			continue
+		}
+
+		dirEntrance := ""
+		switch oldDir {
+		case "up":
+			dirEntrance = "down"
+		case "right":
+			dirEntrance = "left"
+		case "down":
+			dirEntrance = "up"
+		case "left":
+			dirEntrance = "right"
+		default:
+			x, y, dir = oldX, oldY, oldDir
+			continue
+
 		}
 
 		if game.CheckCollisionObstacles(x, y) || game.CheckCollisionTowers(x, y) {
@@ -221,15 +187,16 @@ func (game *Game) genRoads() {
 		}
 
 		game.GS.Roads = append(game.GS.Roads, &RoadObj{
-			x: oldX, y: oldY, color: BGGreen + White,
-			Index:     index,
-			Direction: dir,
+			x: oldX, y: oldY,
+			Index:       index,
+			DirEntrance: dirEntrance, DirExit: dir,
 		})
 		index += 1
 	}
 }
 
 func (game *Game) genObstacles() {
+	obstaclesNames := []string{"lake", "sea", "sand", "hills", "tree", "brick"}
 	for range int(float64(game.GC.FieldWidth+game.GC.FieldHeight) * rand.Float64()) {
 		x, y := rand.IntN(game.GC.FieldWidth), rand.IntN(game.GC.FieldHeight)
 
@@ -237,7 +204,10 @@ func (game *Game) genObstacles() {
 			continue
 		}
 
-		game.GS.Obstacles = append(game.GS.Obstacles, &ObstacleObj{x: x, y: y, color: BGBrightYellow + BrightBlue})
+		game.GS.Obstacles = append(game.GS.Obstacles, &ObstacleObj{
+			x: x, y: y,
+			Name: obstaclesNames[rand.IntN(len(obstaclesNames))],
+		})
 	}
 }
 
@@ -252,7 +222,7 @@ func (game *Game) genEnemies() {
 		for i := range 15 * r {
 			uid += 1
 			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
-				x: x, y: y, color: BGGreen + Red,
+				x: x, y: y,
 				UID:             uid,
 				Progress:        0.0,
 				reward:          1,
@@ -265,7 +235,7 @@ func (game *Game) genEnemies() {
 		for i := range 10 * r {
 			uid += 1
 			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
-				x: x, y: y, color: BGGreen + Red,
+				x: x, y: y,
 				UID:             uid,
 				Progress:        0.0,
 				reward:          1,
@@ -278,7 +248,7 @@ func (game *Game) genEnemies() {
 		for i := range 5 * r {
 			uid += 1
 			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
-				x: x, y: y, color: BGGreen + Red,
+				x: x, y: y,
 				UID:             uid,
 				Progress:        0.0,
 				reward:          3,
@@ -291,7 +261,7 @@ func (game *Game) genEnemies() {
 		for i := range 5 * r {
 			uid += 1
 			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
-				x: x, y: y, color: BGGreen + Red,
+				x: x, y: y,
 				UID:             uid,
 				Progress:        0.0,
 				reward:          2,
@@ -304,7 +274,7 @@ func (game *Game) genEnemies() {
 		for i := range 10 * r {
 			uid += 1
 			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
-				x: x, y: y, color: BGGreen + Red,
+				x: x, y: y,
 				UID:             uid,
 				Progress:        0.0,
 				reward:          3,
@@ -317,7 +287,7 @@ func (game *Game) genEnemies() {
 		for i := range 15 * r {
 			uid += 1
 			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
-				x: x, y: y, color: BGGreen + Red,
+				x: x, y: y,
 				UID:             uid,
 				Progress:        0.0,
 				reward:          int(float64(r) / 10),

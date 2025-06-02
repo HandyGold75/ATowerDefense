@@ -14,6 +14,8 @@ import (
 )
 
 type (
+	color string
+
 	keybinds struct {
 		Exit, Pause, Confirm, Delete,
 		Up, Down, Right, Left,
@@ -38,6 +40,53 @@ type (
 
 		keyBinds keybinds
 	}
+)
+
+const (
+	Reset color = "\033[0m"
+
+	Bold            color = "\033[1m"
+	Faint           color = "\033[2m"
+	Italic          color = "\033[3m"
+	Underline       color = "\033[4m"
+	StrikeTrough    color = "\033[9m"
+	DubbleUnderline color = "\033[21m"
+
+	Black   color = "\033[30m"
+	Red     color = "\033[31m"
+	Green   color = "\033[32m"
+	Yellow  color = "\033[33m"
+	Blue    color = "\033[34m"
+	Magenta color = "\033[35m"
+	Cyan    color = "\033[36m"
+	White   color = "\033[37m"
+
+	BGBlack   color = "\033[40m"
+	BGRed     color = "\033[41m"
+	BGGreen   color = "\033[42m"
+	BGYellow  color = "\033[43m"
+	BGBlue    color = "\033[44m"
+	BGMagenta color = "\033[45m"
+	BGCyan    color = "\033[46m"
+	BGWhite   color = "\033[47m"
+
+	BrightBlack   color = "\033[90m"
+	BrightRed     color = "\033[91m"
+	BrightGreen   color = "\033[92m"
+	BrightYellow  color = "\033[93m"
+	BrightBlue    color = "\033[94m"
+	BrightMagenta color = "\033[95m"
+	BrightCyan    color = "\033[96m"
+	BrightWhite   color = "\033[97m"
+
+	BGBrightBlack   color = "\033[100m"
+	BGBrightRed     color = "\033[101m"
+	BGBrightGreen   color = "\033[102m"
+	BGBrightYellow  color = "\033[103m"
+	BGBrightBlue    color = "\033[104m"
+	BGBrightMagenta color = "\033[105m"
+	BGBrightCyan    color = "\033[106m"
+	BGBrightWhite   color = "\033[107m"
 )
 
 func NewTUI(gm *game.Game, pid int) (*TUI, error) {
@@ -215,58 +264,56 @@ func (cl *TUI) getField() string {
 			frame += "\r\n"
 		}
 		if y+cl.viewOffsetY < 0 || y+cl.viewOffsetY >= cl.game.GC.FieldHeight {
-			frame += strings.Repeat(string(game.BGBrightBlack+"  "+game.Reset), min(cl.game.GC.FieldWidth, cl.maxWidth))
+			frame += strings.Repeat(string(BGBrightBlack+BrightBlack+"  "+Reset), min(cl.game.GC.FieldWidth, cl.maxWidth))
 			continue
 		}
 		for x := range min(cl.game.GC.FieldWidth, cl.maxWidth) {
 			if x+cl.viewOffsetX < 0 || x+cl.viewOffsetX >= cl.game.GC.FieldWidth {
-				frame += string(game.BGBrightBlack + "  " + game.Reset)
+				frame += string(BGBrightBlack + BrightBlack + "  " + Reset)
 			} else if x+cl.viewOffsetX == cl.selectedX && y+cl.viewOffsetY == cl.selectedY {
-				frame += string(game.BGGreen + game.Black + "" + game.Reset)
+				frame += string(BGGreen + Black + "" + Reset)
 			} else if obj := cl.game.GetCollisions(x+cl.viewOffsetX, y+cl.viewOffsetY); len(obj) > 0 {
 				switch obj[len(obj)-1].Type() {
 				case "Obstacle":
-					frame += string(obj[len(obj)-1].Color() + "" + game.Reset)
+					frame += string(BGBrightYellow + BrightBlue + "" + Reset)
 
 				case "Road":
 					if obj[len(obj)-1].(*game.RoadObj).Index == 0 {
-						frame += string(obj[len(obj)-1].Color() + game.BrightBlack + " 󰮢" + game.Reset)
+						frame += string(BGGreen + White + BrightBlack + " 󰮢" + Reset)
 						continue
 					} else if obj[len(obj)-1].(*game.RoadObj).Index == len(cl.game.GS.Roads)-1 {
-						frame += string(obj[len(obj)-1].Color() + game.BrightBlack + " 󰄚" + game.Reset)
+						frame += string(BGGreen + White + BrightBlack + " 󰄚" + Reset)
 						continue
 					}
 
-					switch obj[len(obj)-1].(*game.RoadObj).Direction {
+					switch obj[len(obj)-1].(*game.RoadObj).DirExit {
 					case "up":
-						frame += string(obj[len(obj)-1].Color() + " " + game.Reset)
+						frame += string(BGGreen + White + " " + Reset)
 					case "right":
-						frame += string(obj[len(obj)-1].Color() + " " + game.Reset)
+						frame += string(BGGreen + White + " " + Reset)
 					case "down":
-						frame += string(obj[len(obj)-1].Color() + " " + game.Reset)
+						frame += string(BGGreen + White + " " + Reset)
 					case "left":
-						frame += string(obj[len(obj)-1].Color() + " " + game.Reset)
+						frame += string(BGGreen + White + " " + Reset)
 					default:
-						frame += string(obj[len(obj)-1].Color() + "?" + game.Reset)
+						frame += string(BGGreen + White + "?" + Reset)
 					}
 
 				case "Tower":
-					frame += string(obj[len(obj)-1].Color() + " 󰚁" + game.Reset)
+					frame += string(BGGreen + Black + " 󰚁" + Reset)
 
 				case "Enemy":
-					roadX, roadY := cl.game.GS.Roads[0].Cord()
-					enemyX, enemyY := obj[len(obj)-1].Cord()
-					if enemyX == roadX && enemyY == roadY {
-						frame += string(obj[len(obj)-1].Color() + game.BrightBlack + " 󰮢" + game.Reset)
+					if obj[len(obj)-1].(*game.EnemyObj).Progress < 1 {
+						frame += string(BGGreen + Red + BrightBlack + " 󰮢" + Reset)
 						continue
 					}
-					frame += string(obj[len(obj)-1].Color() + " " + game.Reset)
+					frame += string(BGGreen + Red + " " + Reset)
 
 				default:
-					frame += string(obj[len(obj)-1].Color() + "??" + game.Reset)
+					frame += string(BGBrightMagenta + BrightMagenta + "??" + Reset)
 				}
 			} else {
-				frame += string(game.Green + "██" + game.Reset)
+				frame += string(BGGreen + Green + "██" + Reset)
 			}
 		}
 	}
@@ -283,19 +330,17 @@ func (cl *TUI) getUI(processTime time.Duration) string {
 		phase = "E:" + strconv.Itoa(len(cl.game.GS.Enemies))
 	}
 	msgLen := len(state) + len(phase) + 1
-	msgLeft := fmt.Sprintf(string(game.BrightWhite)+"%v %v", state, phase)
+	msgLeft := fmt.Sprintf(string(BrightWhite+"%v %v"), state, phase)
 
 	lag := strconv.FormatInt(processTime.Milliseconds(), 10)
 	if processTime >= cl.game.GC.TickDelay {
 		msgLen -= 4
-		lag = string(game.Red) + lag
+		lag = string(Red) + lag
 	}
 	msgLen += len(lag) + len(strconv.Itoa(cl.game.Players[cl.pid].Coins)) + len(strconv.Itoa(cl.game.GS.Health)) + 2
-	msgRight := fmt.Sprintf(string(game.White)+"%v "+
-		string(game.BrightYellow)+"%v "+
-		string(game.BrightRed)+"%v", lag, cl.game.Players[cl.pid].Coins, cl.game.GS.Health)
+	msgRight := fmt.Sprintf(string(White+"%v "+BrightYellow+"%v "+BrightRed+"%v"), lag, cl.game.Players[cl.pid].Coins, cl.game.GS.Health)
 
-	frame := fmt.Sprintf("\033[0;0H"+string(game.BGBrightBlack)+"%v"+strings.Repeat(" ", max(1, min(cl.game.GC.FieldWidth*2, cl.maxWidth*2)-msgLen))+"%v"+string(game.Reset), msgLeft, msgRight)
+	frame := fmt.Sprintf("\033[0;0H"+string(BGBrightBlack)+"%v"+strings.Repeat(" ", max(1, min(cl.game.GC.FieldWidth*2, cl.maxWidth*2)-msgLen))+"%v"+string(Reset), msgLeft, msgRight)
 
 	if cl.maxWidth > cl.game.GC.FieldWidth+10 && cl.maxHeight+1 >= len(game.Towers) {
 		for i, tower := range game.Towers {
@@ -303,9 +348,9 @@ func (cl *TUI) getUI(processTime time.Duration) string {
 			msgLeft := tower.Name
 			msgRight := "(" + strconv.Itoa(tower.Cost) + ")"
 			if i == cl.selectedTower {
-				frame += string(game.BGWhite+game.Black) + msgLeft + strings.Repeat(" ", max(0, 20-len(msgLeft)-len(msgRight))) + msgRight + string(game.Reset)
+				frame += string(BGWhite+Black) + msgLeft + strings.Repeat(" ", max(0, 20-len(msgLeft)-len(msgRight))) + msgRight + string(Reset)
 			} else {
-				frame += string(game.BGBlack+game.White) + msgLeft + strings.Repeat(" ", max(0, 20-len(msgLeft)-len(msgRight))) + msgRight + string(game.Reset)
+				frame += string(BGBlack+White) + msgLeft + strings.Repeat(" ", max(0, 20-len(msgLeft)-len(msgRight))) + msgRight + string(Reset)
 			}
 		}
 	}
