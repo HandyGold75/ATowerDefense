@@ -78,8 +78,8 @@ func main() {
 		Mode:        "singleplayer",
 		IP:          "84.25.253.77",
 		Port:        17540,
-		FieldHeight: 50,
-		FieldWidth:  50,
+		FieldHeight: 15,
+		FieldWidth:  15,
 		TickDelay:   time.Millisecond * 50,
 	}
 
