@@ -25,7 +25,7 @@ type (
 		// Called in a goroutine until an error is returned.
 		//
 		// Returning the `game.Errors.Exit` error will cause a succesfull game stop.
-		// Any other error will cause a non succesfull game stop.
+		// Any other error will only be printed.
 		Input() error
 	}
 )
@@ -62,13 +62,12 @@ func Run(gc game.GameConfig, renderer string) error {
 	go func() {
 		defer func() { cl.Stop(); _ = gm.Stop() }()
 
-		for {
+		for gm.GS.State != "stopped" {
 			if err := cl.Input(); err != nil {
 				if err == game.Errors.Exit {
 					break
 				}
 				fmt.Println(err)
-				break
 			}
 		}
 	}()
