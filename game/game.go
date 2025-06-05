@@ -2,6 +2,7 @@ package game
 
 import (
 	"errors"
+	"math"
 	"math/rand/v2"
 	"slices"
 	"time"
@@ -66,8 +67,9 @@ var (
 			x: 0, y: 0, UID: -1,
 			Name:                "Basic",
 			Cost:                25,
+			Range:               3,
+			Rotation:            0.0,
 			damage:              1,
-			fireRange:           3,
 			fireProgress:        0.0,
 			fireSpeedMultiplier: 1.0,
 			effectiveRange:      []*RoadObj{},
@@ -75,8 +77,9 @@ var (
 			x: 0, y: 0, UID: -1,
 			Name:                "LongRange",
 			Cost:                30,
+			Range:               6,
+			Rotation:            0.0,
 			damage:              1,
-			fireRange:           6,
 			fireProgress:        0.0,
 			fireSpeedMultiplier: 0.75,
 			effectiveRange:      []*RoadObj{},
@@ -84,8 +87,9 @@ var (
 			x: 0, y: 0, UID: -1,
 			Name:                "Fast",
 			Cost:                40,
+			Range:               2,
+			Rotation:            0.0,
 			damage:              1,
-			fireRange:           2,
 			fireProgress:        0.0,
 			fireSpeedMultiplier: 1.75,
 			effectiveRange:      []*RoadObj{},
@@ -93,8 +97,9 @@ var (
 			x: 0, y: 0, UID: -1,
 			Name:                "Strong",
 			Cost:                50,
+			Range:               2,
+			Rotation:            0.0,
 			damage:              3,
-			fireRange:           2,
 			fireProgress:        0.0,
 			fireSpeedMultiplier: 0.75,
 			effectiveRange:      []*RoadObj{},
@@ -378,9 +383,9 @@ func (game *Game) PlaceTower(name string, x, y, pid int) error {
 
 	uid += 1
 	tower.x, tower.y, tower.UID, tower.Owner = x, y, uid, pid
-	for offsetY := range (tower.fireRange * 2) + 1 {
-		for offsetX := range (tower.fireRange * 2) + 1 {
-			tower.effectiveRange = append(tower.effectiveRange, game.GetCollisionRoads(x+(offsetX-tower.fireRange), y+(offsetY-tower.fireRange))...)
+	for offsetY := range (tower.Range * 2) + 1 {
+		for offsetX := range (tower.Range * 2) + 1 {
+			tower.effectiveRange = append(tower.effectiveRange, game.GetCollisionRoads(x+(offsetX-tower.Range), y+(offsetY-tower.Range))...)
 		}
 	}
 	slices.SortFunc(tower.effectiveRange, func(a, b *RoadObj) int { return b.Index - a.Index })
@@ -430,6 +435,10 @@ func (game *Game) iterateTowers(delta time.Duration) {
 			}
 			enemies[i].health -= min(enemies[i].health, tower.damage)
 			tower.fireProgress -= 1
+			tower.Rotation = (math.Atan2(float64(enemies[i].y-tower.y), float64(enemies[i].x-tower.x)) * (180 / math.Pi)) + 90
+			if tower.Rotation < 0 {
+				tower.Rotation += 360
+			}
 
 			if enemies[i].health <= 0 {
 				game.Players[max(len(game.Players)-1, tower.Owner)].Coins += enemies[i].reward

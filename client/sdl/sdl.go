@@ -3,12 +3,10 @@ package clsdl
 import (
 	"ATowerDefense/game"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
 )
 
@@ -55,53 +53,11 @@ func NewSDL(gm *game.Game, pid int) (*SDL, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	execPath, err := os.Executable()
-	if err != nil {
-		return nil, err
-	}
-	fileSplit := strings.Split(strings.ReplaceAll(execPath, "\\", "/"), "/")
-	execPath = strings.Join(fileSplit[:len(fileSplit)-1], "/")
-
-	loadTexture := func(file string) (*sdl.Texture, error) {
-		srf, err := img.LoadPNGRW(sdl.RWFromFile(file, "rb"))
-		if err != nil {
-			return nil, err
-		}
-		defer srf.Free()
-		txr, err := r.CreateTextureFromSurface(srf)
-		if err != nil {
-			return nil, err
-		}
-		return txr, nil
-	}
-
-	txrText, err := loadTexture(execPath + "/client/assets/Text.png")
-	if err != nil {
+	if err := r.SetDrawBlendMode(sdl.BLENDMODE_BLEND); err != nil {
 		return nil, err
 	}
 
-	txrUI, err := loadTexture(execPath + "/client/assets/UI.png")
-	if err != nil {
-		return nil, err
-	}
-
-	txrObstacles, err := loadTexture(execPath + "/client/assets/Obstacles.png")
-	if err != nil {
-		return nil, err
-	}
-
-	txrRoads, err := loadTexture(execPath + "/client/assets/Roads.png")
-	if err != nil {
-		return nil, err
-	}
-
-	txrTowers, err := loadTexture(execPath + "/client/assets/Towers.png")
-	if err != nil {
-		return nil, err
-	}
-
-	txrEnemies, err := loadTexture(execPath + "/client/assets/Enemies.png")
+	textures, err := newTextures(r)
 	if err != nil {
 		return nil, err
 	}
@@ -117,14 +73,7 @@ func NewSDL(gm *game.Game, pid int) (*SDL, error) {
 		viewOffsetX: 0, viewOffsetY: 0,
 		selectedTower: 0,
 
-		textures: textures{
-			text:      txrText,
-			ui:        txrUI,
-			obstacles: txrObstacles,
-			roads:     txrRoads,
-			towers:    txrTowers,
-			enemies:   txrEnemies,
-		},
+		textures: textures,
 	}, nil
 }
 
@@ -176,16 +125,16 @@ func (cl *SDL) Draw(processTime time.Duration) error {
 
 func (cl *SDL) Input() error {
 	event := sdl.WaitEventTimeout(100)
-	switch event.(type) {
+	switch event := event.(type) {
 	case *sdl.QuitEvent:
 		return game.Errors.Exit
 
 	case *sdl.KeyboardEvent:
-		if event.(*sdl.KeyboardEvent).State == 1 {
+		if event.State != 1 {
 			return nil
 		}
 
-		switch event.(*sdl.KeyboardEvent).Keysym.Scancode {
+		switch event.Keysym.Scancode {
 		case sdl.SCANCODE_ESCAPE:
 			return game.Errors.Exit
 		case sdl.SCANCODE_P, sdl.SCANCODE_Q:
@@ -247,215 +196,6 @@ func (cl *SDL) Input() error {
 	return nil
 }
 
-func (cl *SDL) renderString(str string, x, y int32) error {
-	sources := []sdl.Rect{}
-	for _, char := range []rune(str) {
-		switch char {
-		case ' ':
-			sources = append(sources, sdl.Rect{X: cl.tileW * -1, Y: cl.tileH * -1, W: cl.tileW, H: cl.tileH})
-
-		case '0':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH})
-		case '1':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 1, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH})
-		case '2':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 2, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH})
-		case '3':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 3, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH})
-		case '4':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 4, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH})
-		case '5':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 5, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH})
-		case '6':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 6, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH})
-		case '7':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 7, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH})
-		case '8':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 8, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH})
-		case '9':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 9, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH})
-
-		case 'a':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'b':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 1, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'c':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 2, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'd':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 3, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'e':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 4, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'f':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 5, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'g':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 6, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'h':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 7, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'i':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 8, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'j':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 9, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'k':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 10, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'l':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 11, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'm':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 12, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'n':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 13, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'o':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 14, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'p':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 15, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'q':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 16, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'r':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 17, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 's':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 18, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 't':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 19, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'u':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 20, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'v':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 21, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'w':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 22, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'x':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 23, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'y':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 24, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-		case 'z':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 25, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH})
-
-		case 'A':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'B':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 1, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'C':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 2, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'D':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 3, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'E':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 4, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'F':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 5, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'G':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 6, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'H':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 7, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'I':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 8, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'J':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 9, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'K':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 10, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'L':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 11, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'M':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 12, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'N':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 13, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'O':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 14, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'P':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 15, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'Q':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 16, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'R':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 17, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'S':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 18, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'T':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 19, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'U':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 20, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'V':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 21, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'W':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 22, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'X':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 23, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'Y':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 24, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-		case 'Z':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 25, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH})
-
-		case '!':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '?':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 1, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '"':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 2, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '#':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 3, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '$':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 4, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '%':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 5, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '&':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 6, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '\'':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 7, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '(':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 8, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case ')':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 9, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '*':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 10, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '+':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 11, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case ',':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 12, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '-':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 13, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '.':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 14, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '/':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 15, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case ':':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 16, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case ';':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 17, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '<':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 18, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '=':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 19, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '>':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 20, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '@':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 21, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '[':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 22, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '\\':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 23, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case ']':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 24, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '^':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 25, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '_':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 26, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '`':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 27, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '{':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 28, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '|':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 29, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '}':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 30, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		case '~':
-			sources = append(sources, sdl.Rect{X: cl.tileW * 31, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH})
-		}
-	}
-
-	for i, src := range sources {
-		if err := cl.renderer.Copy(cl.textures.text, &src, &sdl.Rect{X: x + ((cl.tileW / 2) * int32(i)), Y: y, W: cl.tileW, H: cl.tileH}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (cl *SDL) drawField() error {
 	if err := cl.renderer.SetDrawColor(0, 255, 0, 255); err != nil {
 		return err
@@ -463,136 +203,32 @@ func (cl *SDL) drawField() error {
 
 	for y := range cl.game.GC.FieldHeight {
 		for x := range cl.game.GC.FieldWidth {
-			dst := sdl.Rect{X: int32((x + cl.viewOffsetX) * 64), Y: int32((y + cl.viewOffsetY) * 64), W: cl.tileW, H: cl.tileH}
+			dst := cl.newRect(int32(x+cl.viewOffsetX), int32(y+cl.viewOffsetY), 1, 1)
 
 			if err := cl.renderer.FillRect(&dst); err != nil {
 				return err
 			}
 
 			for _, obj := range cl.game.GetCollisions(x, y) {
-				sheet, dstOffset, src := cl.textures.obstacles, dst, sdl.Rect{X: cl.tileW * -1, Y: cl.tileH * -1, W: cl.tileW, H: cl.tileH}
+				sheet, dstOffset, src := cl.textures.obstacles, dst, cl.newRect(0, 0, 0, 0)
+				switch obj := obj.(type) {
+				case *game.ObstacleObj:
+					sheet, src = cl.textures.obstacles, cl.srcObstacle(obj)
 
-				switch obj.Type() {
-				case "Obstacle":
-					sheet = cl.textures.obstacles
-					switch obj.(*game.ObstacleObj).Name {
-					case "lake":
-						src = sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-					case "sea":
-						src = sdl.Rect{X: cl.tileW * 1, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-					case "sand":
-						src = sdl.Rect{X: cl.tileW * 2, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-					case "hills":
-						src = sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH}
-					case "tree":
-						src = sdl.Rect{X: cl.tileW * 1, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH}
-					case "brick":
-						src = sdl.Rect{X: cl.tileW * 2, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH}
-					}
+				case *game.RoadObj:
+					sheet, src = cl.textures.roads, cl.srcRoad(obj)
 
-				case "Road":
-					sheet = cl.textures.roads
-					if obj.(*game.RoadObj).Index == 0 {
-						switch obj.(*game.RoadObj).DirExit {
-						case "up":
-							src = sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH}
-						case "right":
-							src = sdl.Rect{X: cl.tileW * 1, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH}
-						case "down":
-							src = sdl.Rect{X: cl.tileW * 2, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH}
-						case "left":
-							src = sdl.Rect{X: cl.tileW * 3, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH}
-						}
-					} else if obj.(*game.RoadObj).Index == len(cl.game.GS.Roads)-1 {
-						switch obj.(*game.RoadObj).DirEntrance {
-						case "up":
-							src = sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH}
-						case "right":
-							src = sdl.Rect{X: cl.tileW * 1, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH}
-						case "down":
-							src = sdl.Rect{X: cl.tileW * 2, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH}
-						case "left":
-							src = sdl.Rect{X: cl.tileW * 3, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH}
-						}
-					} else {
-						switch obj.(*game.RoadObj).DirEntrance + ";" + obj.(*game.RoadObj).DirExit {
-						case "up;down", "down;up":
-							src = sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-						case "left;right", "right;left":
-							src = sdl.Rect{X: cl.tileW * 1, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-						case "up;right", "right;up":
-							src = sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH}
-						case "right;down", "down;right":
-							src = sdl.Rect{X: cl.tileW * 1, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH}
-						case "down;left", "left;down":
-							src = sdl.Rect{X: cl.tileW * 2, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH}
-						case "left;up", "up;left":
-							src = sdl.Rect{X: cl.tileW * 3, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH}
-						}
-					}
+				case *game.TowerObj:
+					sheet, src = cl.textures.towers, cl.srcTower(obj)
 
-				case "Tower":
-					// TODO: Tower oriantation.
-
-					sheet = cl.textures.towers
-					switch obj.(*game.TowerObj).Name {
-					case "Basic":
-						src = sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-					case "LongRange":
-						src = sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 1, W: cl.tileW, H: cl.tileH}
-					case "Fast":
-						src = sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 2, W: cl.tileW, H: cl.tileH}
-					case "Strong":
-						src = sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 3, W: cl.tileW, H: cl.tileH}
-					}
-
-				case "Enemy":
-					if obj.(*game.EnemyObj).Progress < 0.5 {
+				case *game.EnemyObj:
+					if obj.Progress < 0.5 {
 						continue
 					}
-
-					sheet = cl.textures.enemies
-					road := cl.game.GS.Roads[min(int(obj.(*game.EnemyObj).Progress), len(cl.game.GS.Roads)-1)]
-					switch road.DirEntrance + ";" + road.DirExit {
-					case "up;down":
-						src = sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-					case "up;left", "right;down":
-						src = sdl.Rect{X: cl.tileW * 1, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-					case "right;left":
-						src = sdl.Rect{X: cl.tileW * 2, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-					case "right;up", "down;left":
-						src = sdl.Rect{X: cl.tileW * 3, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-					case "down;up":
-						src = sdl.Rect{X: cl.tileW * 4, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-					case "down;right", "left;up":
-						src = sdl.Rect{X: cl.tileW * 5, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-					case "left;right":
-						src = sdl.Rect{X: cl.tileW * 6, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-					case "left;down", "up;right":
-						src = sdl.Rect{X: cl.tileW * 7, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}
-					}
-
-					offset := obj.(*game.EnemyObj).Progress - float64(int(obj.(*game.EnemyObj).Progress))
-
-					switch road.DirExit {
-					case "up":
-						dstOffset.Y -= int32(float64(cl.tileH) * offset)
-					case "right":
-						dstOffset.X += int32(float64(cl.tileW) * offset)
-					case "down":
-						dstOffset.Y += int32(float64(cl.tileH) * offset)
-					case "left":
-						dstOffset.X -= int32(float64(cl.tileW) * offset)
-					}
+					sheet, src = cl.textures.enemies, cl.srcEnemy(obj, &dstOffset)
 				}
 
 				if err := cl.renderer.Copy(sheet, &src, &dstOffset); err != nil {
-					return err
-				}
-			}
-
-			if x == cl.selectedX && y == cl.selectedY {
-				if err := cl.renderer.Copy(cl.textures.ui, &sdl.Rect{X: cl.tileW * 0, Y: cl.tileH * 0, W: cl.tileW, H: cl.tileH}, &dst); err != nil {
 					return err
 				}
 			}
@@ -603,6 +239,20 @@ func (cl *SDL) drawField() error {
 }
 
 func (cl *SDL) drawUI(processTime time.Duration) error {
+	if cl.game.GS.Phase == "building" {
+		if err := cl.renderer.SetDrawColor(255, 0, 0, 85); err != nil {
+			return err
+		}
+		r := game.Towers[cl.selectedTower].Range
+		if err := cl.renderer.FillRect(cl.newRectP(int32(cl.selectedX+cl.viewOffsetX-r), int32(cl.selectedY+cl.viewOffsetY-r), int32((r*2)+1), int32((r*2)+1))); err != nil {
+			return err
+		}
+	}
+
+	if err := cl.renderer.Copy(cl.textures.ui, cl.newRectP(0, 0, 1, 1), cl.newRectP(int32(cl.selectedX+cl.viewOffsetX), int32(cl.selectedY+cl.viewOffsetY), 1, 1)); err != nil {
+		return err
+	}
+
 	phase := "R:" + strconv.Itoa(cl.game.GS.Round+1)
 	if cl.game.GS.Phase == "defending" {
 		phase += " E:" + strconv.Itoa(len(cl.game.GS.Enemies))
