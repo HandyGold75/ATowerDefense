@@ -272,21 +272,21 @@ func (cl *TUI) getField() string {
 				frame += string(BGBrightBlack + BrightBlack + "  " + Reset)
 			} else if x+cl.viewOffsetX == cl.selectedX && y+cl.viewOffsetY == cl.selectedY {
 				frame += string(BGGreen + Black + "" + Reset)
-			} else if obj := cl.game.GetCollisions(x+cl.viewOffsetX, y+cl.viewOffsetY); len(obj) > 0 {
-				switch obj[len(obj)-1].Type() {
-				case "Obstacle":
+			} else if objects := cl.game.GetCollisions(x+cl.viewOffsetX, y+cl.viewOffsetY); len(objects) > 0 {
+				switch obj := objects[len(objects)-1].(type) {
+				case *game.ObstacleObj:
 					frame += string(BGBrightYellow + BrightBlue + "" + Reset)
 
-				case "Road":
-					if obj[len(obj)-1].(*game.RoadObj).Index == 0 {
+				case *game.RoadObj:
+					if obj.Index == 0 {
 						frame += string(BGGreen + White + BrightBlack + " 󰮢" + Reset)
 						continue
-					} else if obj[len(obj)-1].(*game.RoadObj).Index == len(cl.game.GS.Roads)-1 {
+					} else if obj.Index == len(cl.game.GS.Roads)-1 {
 						frame += string(BGGreen + White + BrightBlack + " 󰄚" + Reset)
 						continue
 					}
 
-					switch obj[len(obj)-1].(*game.RoadObj).DirExit {
+					switch obj.DirExit {
 					case "up":
 						frame += string(BGGreen + White + " " + Reset)
 					case "right":
@@ -299,11 +299,11 @@ func (cl *TUI) getField() string {
 						frame += string(BGGreen + White + "?" + Reset)
 					}
 
-				case "Tower":
+				case *game.TowerObj:
 					frame += string(BGGreen + Black + " 󰚁" + Reset)
 
-				case "Enemy":
-					if obj[len(obj)-1].(*game.EnemyObj).Progress < 1 {
+				case *game.EnemyObj:
+					if obj.Progress < 1 {
 						frame += string(BGGreen + Red + BrightBlack + " 󰮢" + Reset)
 						continue
 					}
