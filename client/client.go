@@ -5,7 +5,10 @@ import (
 	cltui "ATowerDefense/client/tui"
 	"ATowerDefense/game"
 	"fmt"
+	"strconv"
 	"time"
+
+	"github.com/HandyGold75/GOLib/tui"
 )
 
 type (
@@ -35,7 +38,62 @@ var (
 	processTime = time.Duration(0)
 )
 
-func Run(gc game.GameConfig, renderer string) error {
+func menuTUI() (gc game.GameConfig, err error) {
+	mode := ""
+
+	tui.Defaults.Align = tui.AlignLeft
+	mm := tui.NewMenuBulky("ASnake")
+
+	sp := mm.Menu.NewMenu("SinglePlayer")
+	sp.NewAction("Start", func() { mode = "singleplayer" })
+	spFieldHeight := sp.NewDigit("Field height", 50, 10, 9999)
+	spFieldWidth := sp.NewDigit("Field width", 50, 10, 9999)
+
+	mp := mm.Menu.NewMenu("MultiPlayer")
+	mp.NewAction("Connect", func() { mode = "multiplayer" })
+	mpIP := mp.NewIPv4("IP", "84.25.253.77")
+	mpPort := mp.NewDigit("Port", 17540, 0, 65535)
+
+	if err := mm.Run(); err != nil {
+		return gc, err
+	}
+
+	gc.Mode = mode
+	gc.IP = mpIP.Value()
+
+	port, err := strconv.ParseUint(mpPort.Value(), 10, 16)
+	if err != nil {
+		return gc, err
+	}
+	gc.Port = uint16(port)
+
+	if gc.FieldHeight, err = strconv.Atoi(spFieldHeight.Value()); err != nil {
+		return gc, err
+	}
+	if gc.FieldWidth, err = strconv.Atoi(spFieldWidth.Value()); err != nil {
+		return gc, err
+	}
+	return gc, nil
+}
+
+func Run(tui bool) error {
+	gc := game.GameConfig{
+		Mode:        "singleplayer",
+		IP:          "84.25.253.77",
+		Port:        17540,
+		FieldHeight: 15,
+		FieldWidth:  15,
+		TickDelay:   time.Millisecond * 50,
+	}
+
+	if tui {
+		conf, err := menuTUI()
+		if err != nil {
+			return err
+		}
+		gc = conf
+	}
+
 	gm := game.NewGame(gc)
 	if err := gm.Start(); err != nil {
 		return err
@@ -43,14 +101,13 @@ func Run(gc game.GameConfig, renderer string) error {
 	pid := gm.AddPlayer()
 
 	var cl client = nil
-	switch renderer {
-	case "sdl":
+	if !tui {
 		c, err := clsdl.NewSDL(gm, pid)
 		if err != nil {
 			return err
 		}
 		cl = c
-	default:
+	} else {
 		c, err := cltui.NewTUI(gm, pid)
 		if err != nil {
 			return err
