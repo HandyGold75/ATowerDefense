@@ -2,73 +2,13 @@ package clsdl
 
 import (
 	"ATowerDefense/game"
-	"os"
+	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
-	"github.com/veandco/go-sdl2/img"
 	"github.com/veandco/go-sdl2/sdl"
 )
-
-func newTextures(r *sdl.Renderer) (textures, error) {
-	execPath, err := os.Executable()
-	if err != nil {
-		return textures{}, err
-	}
-	fileSplit := strings.Split(strings.ReplaceAll(execPath, "\\", "/"), "/")
-	execPath = strings.Join(fileSplit[:len(fileSplit)-1], "/")
-
-	loadTexture := func(file string) (*sdl.Texture, error) {
-		srf, err := img.LoadPNGRW(sdl.RWFromFile(file, "rb"))
-		if err != nil {
-			return nil, err
-		}
-		defer srf.Free()
-		txr, err := r.CreateTextureFromSurface(srf)
-		if err != nil {
-			return nil, err
-		}
-		return txr, nil
-	}
-
-	txrText, err := loadTexture(execPath + "/client/assets/Text.png")
-	if err != nil {
-		return textures{}, err
-	}
-
-	txrUI, err := loadTexture(execPath + "/client/assets/UI.png")
-	if err != nil {
-		return textures{}, err
-	}
-
-	txrObstacles, err := loadTexture(execPath + "/client/assets/Obstacles.png")
-	if err != nil {
-		return textures{}, err
-	}
-
-	txrRoads, err := loadTexture(execPath + "/client/assets/Roads.png")
-	if err != nil {
-		return textures{}, err
-	}
-
-	txrTowers, err := loadTexture(execPath + "/client/assets/Towers.png")
-	if err != nil {
-		return textures{}, err
-	}
-
-	txrEnemies, err := loadTexture(execPath + "/client/assets/Enemies.png")
-	if err != nil {
-		return textures{}, err
-	}
-
-	return textures{
-		text:      txrText,
-		ui:        txrUI,
-		obstacles: txrObstacles,
-		roads:     txrRoads,
-		towers:    txrTowers,
-		enemies:   txrEnemies,
-	}, nil
-}
 
 func (cl *SDL) newRect(x, y, w, h int32) sdl.Rect {
 	return sdl.Rect{X: x * cl.tileW, Y: y * cl.tileH, W: w * cl.tileW, H: h * cl.tileH}
@@ -406,5 +346,111 @@ func (cl *SDL) renderString(str string, x, y int32) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (cl *SDL) drawField() error {
+	if err := cl.renderer.SetDrawColor(0, 255, 0, 255); err != nil {
+		return err
+	}
+
+	for y := range cl.game.GC.FieldHeight {
+		for x := range cl.game.GC.FieldWidth {
+			dst := cl.newRect(int32(x+cl.viewOffsetX), int32(y+cl.viewOffsetY), 1, 1)
+
+			if err := cl.renderer.FillRect(&dst); err != nil {
+				return err
+			}
+
+			for _, obj := range cl.game.GetCollisions(x, y) {
+				sheet, dstOffset, src := cl.textures.obstacles, dst, cl.newRect(0, 0, 0, 0)
+				switch obj := obj.(type) {
+				case *game.ObstacleObj:
+					sheet, src = cl.textures.obstacles, cl.srcObstacle(obj)
+
+				case *game.RoadObj:
+					sheet, src = cl.textures.roads, cl.srcRoad(obj)
+
+				case *game.TowerObj:
+					sheet, src = cl.textures.towers, cl.srcTower(obj)
+
+				case *game.EnemyObj:
+					if obj.Progress < 0.5 {
+						continue
+					}
+					sheet, src = cl.textures.enemies, cl.srcEnemy(obj, &dstOffset)
+				}
+
+				if err := cl.renderer.Copy(sheet, &src, &dstOffset); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (cl *SDL) drawUI(processTime time.Duration) error {
+	if cl.game.GS.Phase == "building" {
+		if err := cl.renderer.SetDrawColor(255, 0, 0, 85); err != nil {
+			return err
+		}
+		r := game.Towers[cl.selectedTower].Range
+		if err := cl.renderer.FillRect(cl.newRectP(int32(cl.selectedX+cl.viewOffsetX-r), int32(cl.selectedY+cl.viewOffsetY-r), int32((r*2)+1), int32((r*2)+1))); err != nil {
+			return err
+		}
+	}
+
+	if err := cl.renderer.Copy(cl.textures.ui, cl.newRectP(0, 0, 1, 1), cl.newRectP(int32(cl.selectedX+cl.viewOffsetX), int32(cl.selectedY+cl.viewOffsetY), 1, 1)); err != nil {
+		return err
+	}
+
+	phase := "R:" + strconv.Itoa(cl.game.GS.Round+1)
+	if cl.game.GS.Phase == "defending" {
+		phase += " E:" + strconv.Itoa(len(cl.game.GS.Enemies))
+	}
+
+	if err := cl.renderString(phase, 0, 0); err != nil {
+		return err
+	}
+
+	// if processTime >= cl.game.GC.TickDelay {
+	// }
+	stats := fmt.Sprintf("%v %v %v", processTime.Milliseconds(), cl.game.Players[cl.pid].Coins, cl.game.GS.Health)
+	stats = strings.Repeat(" ", int(cl.windowW/32)-len(stats)-1) + stats
+
+	if err := cl.renderString(stats, 0, 0); err != nil {
+		return err
+	}
+
+	if cl.game.GS.Phase == "building" {
+		for i, tower := range game.Towers {
+			if i == cl.selectedTower {
+				if err := cl.renderString(tower.Name+" <", 0, (cl.windowH-(cl.tileH*int32(len(game.Towers))))+(cl.tileH*int32(i))); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := cl.renderString(tower.Name, 0, (cl.windowH-(cl.tileH*int32(len(game.Towers))))+(cl.tileH*int32(i))); err != nil {
+				return err
+			}
+		}
+	}
+
+	if cl.game.GS.State == "paused" {
+		msg := "Paused"
+		if err := cl.renderString(msg, (cl.windowW/2)-(cl.tileW/2)-((cl.tileW/2)*int32(len(msg)/2)), (cl.windowH/2)-(cl.tileH/2)); err != nil {
+			return err
+		}
+	}
+
+	if cl.game.GS.Phase == "lost" {
+		msg := "Game Over"
+		if err := cl.renderString(msg, (cl.windowW/2)-(cl.tileW/2)-((cl.tileW/2)*int32(len(msg)/2)), (cl.windowH/2)-(cl.tileH/2)); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
