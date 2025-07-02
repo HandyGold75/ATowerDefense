@@ -95,27 +95,27 @@ func (cl *SDL) srcTower(obj *game.TowerObj) sdl.Rect {
 func (cl *SDL) srcEnemy(obj *game.EnemyObj, dst *sdl.Rect) sdl.Rect {
 	road := cl.game.GS.Roads[min(int(obj.Progress), len(cl.game.GS.Roads)-1)]
 
-	offset := (obj.Progress - float64(int(obj.Progress))) / 2
+	offset := (obj.Progress - float64(int(obj.Progress)))
 	switch road.DirEntrance {
 	case "up":
-		dst.Y += int32(float64(cl.tileH) * offset)
+		dst.Y += int32(float64(cl.tileH) * (min(offset, 0.5) - 0.5))
 	case "right":
-		dst.X -= int32(float64(cl.tileW) * offset)
+		dst.X -= int32(float64(cl.tileW) * (min(offset, 0.5) - 0.5))
 	case "down":
-		dst.Y -= int32(float64(cl.tileH) * offset)
+		dst.Y -= int32(float64(cl.tileH) * (min(offset, 0.5) - 0.5))
 	case "left":
-		dst.X += int32(float64(cl.tileW) * offset)
+		dst.X += int32(float64(cl.tileW) * (min(offset, 0.5) - 0.5))
 	}
 
 	switch road.DirExit {
 	case "up":
-		dst.Y -= int32(float64(cl.tileH) * offset)
+		dst.Y -= int32(float64(cl.tileH) * (max(offset, 0.5) - 0.5))
 	case "right":
-		dst.X += int32(float64(cl.tileW) * offset)
+		dst.X += int32(float64(cl.tileW) * (max(offset, 0.5) - 0.5))
 	case "down":
-		dst.Y += int32(float64(cl.tileH) * offset)
+		dst.Y += int32(float64(cl.tileH) * (max(offset, 0.5) - 0.5))
 	case "left":
-		dst.X -= int32(float64(cl.tileW) * offset)
+		dst.X -= int32(float64(cl.tileW) * (max(offset, 0.5) - 0.5))
 	}
 
 	switch road.DirEntrance + ";" + road.DirExit {
@@ -387,6 +387,27 @@ func (cl *SDL) drawField() error {
 			}
 		}
 	}
+
+	// for y := range cl.game.GC.FieldHeight {
+	// 	for x := range cl.game.GC.FieldWidth {
+	// 		dst := cl.newRect(int32(x+cl.viewOffsetX), int32(y+cl.viewOffsetY), 1, 1)
+
+	// 		for _, obj := range cl.game.GetCollisions(x, y) {
+	// 			sheet, dstOffset, src := cl.textures.obstacles, dst, cl.newRect(0, 0, 0, 0)
+	// 			switch obj := obj.(type) {
+	// 			case *game.EnemyObj:
+	// 				if obj.Progress < 0.5 {
+	// 					continue
+	// 				}
+	// 				sheet, src = cl.textures.enemies, cl.srcEnemy(obj, &dstOffset)
+	// 			}
+
+	// 			if err := cl.renderer.Copy(sheet, &src, &dstOffset); err != nil {
+	// 				return err
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	return nil
 }
