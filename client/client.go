@@ -4,6 +4,7 @@ import (
 	clsdl "ATowerDefense/client/sdl"
 	cltui "ATowerDefense/client/tui"
 	"ATowerDefense/game"
+	"embed"
 	"fmt"
 	"strconv"
 	"time"
@@ -36,6 +37,9 @@ type (
 var (
 	tickDelay   = time.Millisecond * 50
 	processTime = time.Duration(0)
+
+	//go:embed assets/*.png
+	assets embed.FS
 )
 
 func menuTUI() (gc game.GameConfig, err error) {
@@ -102,7 +106,7 @@ func Run(tui bool) error {
 
 	var cl client = nil
 	if !tui {
-		c, err := clsdl.NewSDL(gm, pid)
+		c, err := clsdl.NewSDL(gm, pid, assets)
 		if err != nil {
 			return err
 		}
