@@ -18,84 +18,90 @@ func (cl *SDL) newRectP(x, y, w, h int32) *sdl.Rect {
 	return &sdl.Rect{X: x * cl.tileW, Y: y * cl.tileH, W: w * cl.tileW, H: h * cl.tileH}
 }
 
-func (cl *SDL) srcObstacle(obj *game.ObstacleObj) sdl.Rect {
+func (cl *SDL) srcObstacle(obj *game.ObstacleObj) *sdl.Rect {
 	switch obj.Name {
 	case "lake":
-		return cl.newRect(0, 0, 1, 1)
+		return cl.newRectP(0, 0, 1, 1)
 	case "sea":
-		return cl.newRect(1, 0, 1, 1)
+		return cl.newRectP(1, 0, 1, 1)
 	case "sand":
-		return cl.newRect(2, 0, 1, 1)
+		return cl.newRectP(2, 0, 1, 1)
 	case "hills":
-		return cl.newRect(0, 1, 1, 1)
+		return cl.newRectP(0, 1, 1, 1)
 	case "tree":
-		return cl.newRect(1, 1, 1, 1)
+		return cl.newRectP(1, 1, 1, 1)
 	case "brick":
-		return cl.newRect(2, 1, 1, 1)
+		return cl.newRectP(2, 1, 1, 1)
 	}
-	return cl.newRect(0, 0, 0, 0)
+	return cl.newRectP(0, 0, 0, 0)
 }
 
-func (cl *SDL) srcRoad(obj *game.RoadObj) sdl.Rect {
+func (cl *SDL) srcRoad(obj *game.RoadObj) *sdl.Rect {
 	if obj.Index == 0 {
 		switch obj.DirExit {
 		case "up":
-			return cl.newRect(0, 2, 1, 1)
+			return cl.newRectP(0, 2, 1, 1)
 		case "right":
-			return cl.newRect(1, 2, 1, 1)
+			return cl.newRectP(1, 2, 1, 1)
 		case "down":
-			return cl.newRect(2, 2, 1, 1)
+			return cl.newRectP(2, 2, 1, 1)
 		case "left":
-			return cl.newRect(3, 2, 1, 1)
+			return cl.newRectP(3, 2, 1, 1)
 		}
 	} else if obj.Index == len(cl.game.GS.Roads)-1 {
 		switch obj.DirEntrance {
 		case "up":
-			return cl.newRect(0, 3, 1, 1)
+			return cl.newRectP(0, 3, 1, 1)
 		case "right":
-			return cl.newRect(1, 3, 1, 1)
+			return cl.newRectP(1, 3, 1, 1)
 		case "down":
-			return cl.newRect(2, 3, 1, 1)
+			return cl.newRectP(2, 3, 1, 1)
 		case "left":
-			return cl.newRect(3, 3, 1, 1)
+			return cl.newRectP(3, 3, 1, 1)
 		}
 	} else {
 		switch obj.DirEntrance + ";" + obj.DirExit {
 		case "up;down", "down;up":
-			return cl.newRect(0, 0, 1, 1)
+			return cl.newRectP(0, 0, 1, 1)
 		case "left;right", "right;left":
-			return cl.newRect(1, 0, 1, 1)
+			return cl.newRectP(1, 0, 1, 1)
 		case "up;right", "right;up":
-			return cl.newRect(0, 1, 1, 1)
+			return cl.newRectP(0, 1, 1, 1)
 		case "right;down", "down;right":
-			return cl.newRect(1, 1, 1, 1)
+			return cl.newRectP(1, 1, 1, 1)
 		case "down;left", "left;down":
-			return cl.newRect(2, 1, 1, 1)
+			return cl.newRectP(2, 1, 1, 1)
 		case "left;up", "up;left":
-			return cl.newRect(3, 1, 1, 1)
+			return cl.newRectP(3, 1, 1, 1)
 		}
 	}
-	return cl.newRect(0, 0, 0, 0)
+	return cl.newRectP(0, 0, 0, 0)
 }
 
-func (cl *SDL) srcTower(obj *game.TowerObj) sdl.Rect {
+func (cl *SDL) srcTower(obj *game.TowerObj) *sdl.Rect {
 	switch obj.Name {
 	case "Basic":
-		return cl.newRect(int32((obj.Rotation/360)*16), 0, 1, 1)
+		return cl.newRectP(int32((obj.Rotation/360)*16), 0, 1, 1)
 	case "LongRange":
-		return cl.newRect(int32((obj.Rotation/360)*16), 1, 1, 1)
+		return cl.newRectP(int32((obj.Rotation/360)*16), 1, 1, 1)
 	case "Fast":
-		return cl.newRect(int32((obj.Rotation/360)*16), 2, 1, 1)
+		return cl.newRectP(int32((obj.Rotation/360)*16), 2, 1, 1)
 	case "Strong":
-		return cl.newRect(int32((obj.Rotation/360)*16), 3, 1, 1)
+		return cl.newRectP(int32((obj.Rotation/360)*16), 3, 1, 1)
 	}
-	return cl.newRect(int32((obj.Rotation/360)*16), 0, 1, 1)
+	return cl.newRectP(int32((obj.Rotation/360)*16), 0, 1, 1)
 }
 
-func (cl *SDL) srcEnemy(obj *game.EnemyObj, dst *sdl.Rect) sdl.Rect {
+func (cl *SDL) srcEnemy(obj *game.EnemyObj, dst *sdl.Rect) *sdl.Rect {
 	road := cl.game.GS.Roads[min(int(obj.Progress), len(cl.game.GS.Roads)-1)]
 
 	offset := (obj.Progress - float64(int(obj.Progress)))
+	if obj.Progress < 1 {
+		offset = (offset / 2) + 0.5
+	} else if int(obj.Progress) >= len(cl.game.GS.Roads)-1 {
+		offset = (offset / 2)
+	}
+
 	switch road.DirEntrance {
 	case "up":
 		dst.Y += int32(float64(cl.tileH) * (min(offset, 0.5) - 0.5))
@@ -120,24 +126,24 @@ func (cl *SDL) srcEnemy(obj *game.EnemyObj, dst *sdl.Rect) sdl.Rect {
 
 	switch road.DirEntrance + ";" + road.DirExit {
 	case "up;down":
-		return cl.newRect(0, 0, 1, 1)
+		return cl.newRectP(0, 0, 1, 1)
 	case "up;left", "right;down":
-		return cl.newRect(1, 0, 1, 1)
+		return cl.newRectP(1, 0, 1, 1)
 	case "right;left":
-		return cl.newRect(2, 0, 1, 1)
+		return cl.newRectP(2, 0, 1, 1)
 	case "right;up", "down;left":
-		return cl.newRect(3, 0, 1, 1)
+		return cl.newRectP(3, 0, 1, 1)
 	case "down;up":
-		return cl.newRect(4, 0, 1, 1)
+		return cl.newRectP(4, 0, 1, 1)
 	case "down;right", "left;up":
-		return cl.newRect(5, 0, 1, 1)
+		return cl.newRectP(5, 0, 1, 1)
 	case "left;right":
-		return cl.newRect(6, 0, 1, 1)
+		return cl.newRectP(6, 0, 1, 1)
 	case "left;down", "up;right":
-		return cl.newRect(7, 0, 1, 1)
+		return cl.newRectP(7, 0, 1, 1)
 	}
 
-	return cl.newRect(0, 0, 0, 0)
+	return cl.newRectP(0, 0, 0, 0)
 }
 
 func (cl *SDL) renderString(str string, x, y int32) error {
@@ -356,58 +362,54 @@ func (cl *SDL) drawField() error {
 
 	for y := range cl.game.GC.FieldHeight {
 		for x := range cl.game.GC.FieldWidth {
-			dst := cl.newRect(int32(x+cl.viewOffsetX), int32(y+cl.viewOffsetY), 1, 1)
-
-			if err := cl.renderer.FillRect(&dst); err != nil {
+			dst := cl.newRectP(int32(x+cl.viewOffsetX), int32(y+cl.viewOffsetY), 1, 1)
+			if err := cl.renderer.FillRect(dst); err != nil {
 				return err
 			}
 
 			for _, obj := range cl.game.GetCollisions(x, y) {
-				sheet, dstOffset, src := cl.textures.obstacles, dst, cl.newRect(0, 0, 0, 0)
 				switch obj := obj.(type) {
 				case *game.ObstacleObj:
-					sheet, src = cl.textures.obstacles, cl.srcObstacle(obj)
+					if err := cl.renderer.Copy(cl.textures.obstacles, cl.srcObstacle(obj), dst); err != nil {
+						return err
+					}
 
 				case *game.RoadObj:
-					sheet, src = cl.textures.roads, cl.srcRoad(obj)
+					if err := cl.renderer.Copy(cl.textures.roads, cl.srcRoad(obj), dst); err != nil {
+						return err
+					}
 
 				case *game.TowerObj:
-					sheet, src = cl.textures.towers, cl.srcTower(obj)
-
-				case *game.EnemyObj:
-					if obj.Progress < 0.5 {
-						continue
+					if err := cl.renderer.Copy(cl.textures.towers, cl.srcTower(obj), dst); err != nil {
+						return err
 					}
-					sheet, src = cl.textures.enemies, cl.srcEnemy(obj, &dstOffset)
-				}
 
-				if err := cl.renderer.Copy(sheet, &src, &dstOffset); err != nil {
-					return err
+				default:
+					continue
 				}
 			}
 		}
 	}
 
-	// for y := range cl.game.GC.FieldHeight {
-	// 	for x := range cl.game.GC.FieldWidth {
-	// 		dst := cl.newRect(int32(x+cl.viewOffsetX), int32(y+cl.viewOffsetY), 1, 1)
+	for y := range cl.game.GC.FieldHeight {
+		for x := range cl.game.GC.FieldWidth {
+			dst := cl.newRect(int32(x+cl.viewOffsetX), int32(y+cl.viewOffsetY), 1, 1)
 
-	// 		for _, obj := range cl.game.GetCollisions(x, y) {
-	// 			sheet, dstOffset, src := cl.textures.obstacles, dst, cl.newRect(0, 0, 0, 0)
-	// 			switch obj := obj.(type) {
-	// 			case *game.EnemyObj:
-	// 				if obj.Progress < 0.5 {
-	// 					continue
-	// 				}
-	// 				sheet, src = cl.textures.enemies, cl.srcEnemy(obj, &dstOffset)
-	// 			}
+			for _, obj := range cl.game.GetCollisionEnemies(x, y) {
+				if obj.Progress == 0.0 {
+					continue
+				}
 
-	// 			if err := cl.renderer.Copy(sheet, &src, &dstOffset); err != nil {
-	// 				return err
-	// 			}
-	// 		}
-	// 	}
-	// }
+				dstOffset := dst
+				if err := cl.renderer.Copy(cl.textures.enemies, cl.srcEnemy(obj, &dstOffset), &dstOffset); err != nil {
+					return err
+				}
+
+				fmt.Println(obj.UID)
+			}
+		}
+	}
+	fmt.Println("---")
 
 	return nil
 }
