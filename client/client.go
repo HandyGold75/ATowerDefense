@@ -42,7 +42,7 @@ var (
 	assets embed.FS
 )
 
-func menuTUI() (gc game.GameConfig, err error) {
+func menuTUI(gc game.GameConfig) (game.GameConfig, error) {
 	mode := ""
 
 	tui.Defaults.Align = tui.AlignLeft
@@ -50,13 +50,13 @@ func menuTUI() (gc game.GameConfig, err error) {
 
 	sp := mm.Menu.NewMenu("SinglePlayer")
 	sp.NewAction("Start", func() { mode = "singleplayer" })
-	spFieldHeight := sp.NewDigit("Field height", 50, 10, 9999)
-	spFieldWidth := sp.NewDigit("Field width", 50, 10, 9999)
+	spFieldWidth := sp.NewDigit("Field width", gc.FieldWidth, 10, 9999)
+	spFieldHeight := sp.NewDigit("Field height", gc.FieldHeight, 10, 9999)
 
 	mp := mm.Menu.NewMenu("MultiPlayer")
 	mp.NewAction("Connect", func() { mode = "multiplayer" })
-	mpIP := mp.NewIPv4("IP", "84.25.253.77")
-	mpPort := mp.NewDigit("Port", 17540, 0, 65535)
+	mpIP := mp.NewIPv4("IP", gc.IP)
+	mpPort := mp.NewDigit("Port", int(gc.Port), 0, 65535)
 
 	if err := mm.Run(); err != nil {
 		return gc, err
@@ -85,13 +85,14 @@ func Run(tui bool) error {
 		Mode:        "singleplayer",
 		IP:          "84.25.253.77",
 		Port:        17540,
-		FieldHeight: 15,
-		FieldWidth:  15,
+		FieldHeight: 20,
+		FieldWidth:  35,
+		GameSpeed:   1,
 		TickDelay:   time.Millisecond * 50,
 	}
 
 	if tui {
-		conf, err := menuTUI()
+		conf, err := menuTUI(gc)
 		if err != nil {
 			return err
 		}
