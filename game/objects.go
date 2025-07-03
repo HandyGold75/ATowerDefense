@@ -59,6 +59,27 @@ type (
 	}
 )
 
+func (game *Game) CheckCollisions(x, y int) bool {
+	return game.CheckCollisionObstacles(x, y) || game.CheckCollisionRoads(x, y) || game.CheckCollisionTowers(x, y) || game.CheckCollisionEnemies(x, y)
+}
+
+func (game *Game) GetCollisions(x, y int) []GameObj {
+	objects := []GameObj{}
+	for _, obj := range game.GetCollisionObstacles(x, y) {
+		objects = append(objects, obj)
+	}
+	for _, obj := range game.GetCollisionRoads(x, y) {
+		objects = append(objects, obj)
+	}
+	for _, obj := range game.GetCollisionTowers(x, y) {
+		objects = append(objects, obj)
+	}
+	for _, obj := range game.GetCollisionEnemies(x, y) {
+		objects = append(objects, obj)
+	}
+	return objects
+}
+
 func (obj *ObstacleObj) Cord() (int, int) { return obj.x, obj.y }
 
 func (game *Game) CheckCollisionObstacles(x, y int) bool {
@@ -66,11 +87,17 @@ func (game *Game) CheckCollisionObstacles(x, y int) bool {
 }
 
 func (game *Game) GetCollisionObstacles(x, y int) []*ObstacleObj {
-	objects := []*ObstacleObj{}
-	if i := slices.IndexFunc(game.GS.Obstacles, func(obj *ObstacleObj) bool { return obj.x == x && obj.y == y }); i >= 0 {
-		objects = append(objects, game.GS.Obstacles[i])
-	}
-	return objects
+	return slices.Collect(
+		func(yield func(*ObstacleObj) bool) {
+			for _, obj := range game.GS.Obstacles {
+				if obj.x == x && obj.y == y {
+					if !yield(obj) {
+						return
+					}
+				}
+			}
+		},
+	)
 }
 
 func (obj *RoadObj) Cord() (int, int) { return obj.x, obj.y }
@@ -80,11 +107,17 @@ func (game *Game) CheckCollisionRoads(x, y int) bool {
 }
 
 func (game *Game) GetCollisionRoads(x, y int) []*RoadObj {
-	objects := []*RoadObj{}
-	if i := slices.IndexFunc(game.GS.Roads, func(obj *RoadObj) bool { return obj.x == x && obj.y == y }); i >= 0 {
-		objects = append(objects, game.GS.Roads[i])
-	}
-	return objects
+	return slices.Collect(
+		func(yield func(*RoadObj) bool) {
+			for _, obj := range game.GS.Roads {
+				if obj.x == x && obj.y == y {
+					if !yield(obj) {
+						return
+					}
+				}
+			}
+		},
+	)
 }
 
 func (obj *TowerObj) Cord() (int, int) { return obj.x, obj.y }
@@ -94,11 +127,17 @@ func (game *Game) CheckCollisionTowers(x, y int) bool {
 }
 
 func (game *Game) GetCollisionTowers(x, y int) []*TowerObj {
-	objects := []*TowerObj{}
-	if i := slices.IndexFunc(game.GS.Towers, func(obj *TowerObj) bool { return obj.x == x && obj.y == y }); i >= 0 {
-		objects = append(objects, game.GS.Towers[i])
-	}
-	return objects
+	return slices.Collect(
+		func(yield func(*TowerObj) bool) {
+			for _, obj := range game.GS.Towers {
+				if obj.x == x && obj.y == y {
+					if !yield(obj) {
+						return
+					}
+				}
+			}
+		},
+	)
 }
 
 func (obj *EnemyObj) Cord() (int, int) { return obj.x, obj.y }
@@ -108,30 +147,15 @@ func (game *Game) CheckCollisionEnemies(x, y int) bool {
 }
 
 func (game *Game) GetCollisionEnemies(x, y int) []*EnemyObj {
-	objects := []*EnemyObj{}
-	if i := slices.IndexFunc(game.GS.Enemies, func(obj *EnemyObj) bool { return obj.x == x && obj.y == y }); i >= 0 {
-		objects = append(objects, game.GS.Enemies[i])
-	}
-	return objects
-}
-
-func (game *Game) CheckCollisions(x, y int) bool {
-	return game.CheckCollisionObstacles(x, y) || game.CheckCollisionRoads(x, y) || game.CheckCollisionTowers(x, y) || game.CheckCollisionEnemies(x, y)
-}
-
-func (game *Game) GetCollisions(x, y int) []GameObj {
-	objects := []GameObj{}
-	if i := slices.IndexFunc(game.GS.Obstacles, func(obj *ObstacleObj) bool { return obj.x == x && obj.y == y }); i >= 0 {
-		objects = append(objects, game.GS.Obstacles[i])
-	}
-	if i := slices.IndexFunc(game.GS.Roads, func(obj *RoadObj) bool { return obj.x == x && obj.y == y }); i >= 0 {
-		objects = append(objects, game.GS.Roads[i])
-	}
-	if i := slices.IndexFunc(game.GS.Towers, func(obj *TowerObj) bool { return obj.x == x && obj.y == y }); i >= 0 {
-		objects = append(objects, game.GS.Towers[i])
-	}
-	if i := slices.IndexFunc(game.GS.Enemies, func(obj *EnemyObj) bool { return obj.x == x && obj.y == y }); i >= 0 {
-		objects = append(objects, game.GS.Enemies[i])
-	}
-	return objects
+	return slices.Collect(
+		func(yield func(*EnemyObj) bool) {
+			for _, obj := range game.GS.Enemies {
+				if obj.x == x && obj.y == y {
+					if !yield(obj) {
+						return
+					}
+				}
+			}
+		},
+	)
 }
