@@ -22,8 +22,9 @@ type (
 		Mode        string
 		IP          string
 		Port        uint16
-		FieldHeight int
 		FieldWidth  int
+		FieldHeight int
+		GameSpeed   int
 		TickDelay   time.Duration
 	}
 	GameState struct {
@@ -65,44 +66,44 @@ var (
 	Towers = []TowerObj{
 		{
 			x: 0, y: 0, UID: -1,
-			Name:                "Basic",
-			Cost:                25,
-			Range:               3,
-			Rotation:            0.0,
-			damage:              1,
-			fireProgress:        0.0,
-			fireSpeedMultiplier: 1.0,
-			effectiveRange:      []*RoadObj{},
+			Name:                  "Basic",
+			Cost:                  25,
+			Range:                 3,
+			Rotation:              0.0,
+			damage:                1,
+			ReloadProgress:        0.0,
+			reloadSpeedMultiplier: 1.0,
+			effectiveRange:        []*RoadObj{},
 		}, {
 			x: 0, y: 0, UID: -1,
-			Name:                "LongRange",
-			Cost:                30,
-			Range:               6,
-			Rotation:            0.0,
-			damage:              1,
-			fireProgress:        0.0,
-			fireSpeedMultiplier: 0.75,
-			effectiveRange:      []*RoadObj{},
+			Name:                  "LongRange",
+			Cost:                  30,
+			Range:                 6,
+			Rotation:              0.0,
+			damage:                1,
+			ReloadProgress:        0.0,
+			reloadSpeedMultiplier: 0.75,
+			effectiveRange:        []*RoadObj{},
 		}, {
 			x: 0, y: 0, UID: -1,
-			Name:                "Fast",
-			Cost:                40,
-			Range:               2,
-			Rotation:            0.0,
-			damage:              1,
-			fireProgress:        0.0,
-			fireSpeedMultiplier: 1.75,
-			effectiveRange:      []*RoadObj{},
+			Name:                  "Fast",
+			Cost:                  40,
+			Range:                 2,
+			Rotation:              0.0,
+			damage:                1,
+			ReloadProgress:        0.0,
+			reloadSpeedMultiplier: 1.75,
+			effectiveRange:        []*RoadObj{},
 		}, {
 			x: 0, y: 0, UID: -1,
-			Name:                "Strong",
-			Cost:                50,
-			Range:               2,
-			Rotation:            0.0,
-			damage:              3,
-			fireProgress:        0.0,
-			fireSpeedMultiplier: 0.75,
-			effectiveRange:      []*RoadObj{},
+			Name:                  "Strong",
+			Cost:                  50,
+			Range:                 2,
+			Rotation:              0.0,
+			damage:                3,
+			ReloadProgress:        0.0,
+			reloadSpeedMultiplier: 0.75,
+			effectiveRange:        []*RoadObj{},
 		},
 	}
 
@@ -127,19 +128,19 @@ func NewGame(gc GameConfig) *Game {
 }
 
 func (game *Game) genRoads() {
-	x, y, dir := rand.IntN(game.GC.FieldWidth), rand.IntN(game.GC.FieldHeight), "right"
+	x, y, dir := rand.IntN(game.GC.FieldWidth), rand.IntN(game.GC.FieldHeight), [4]string{"up", "right", "down", "left"}[rand.IntN(4)]
 	index := 0
 	for range int(float64(game.GC.FieldWidth+game.GC.FieldHeight) * (1 + rand.Float64())) {
 		oldX, oldY, oldDir := x, y, dir
 
 		switch i := rand.IntN(8); {
-		case i == 0 && dir != "down":
+		case i == 0 && oldDir != "down":
 			dir = "up"
-		case i == 1 && dir != "left":
+		case i == 1 && oldDir != "left":
 			dir = "right"
-		case i == 2 && dir != "up":
+		case i == 2 && oldDir != "up":
 			dir = "down"
-		case i == 3 && dir != "right":
+		case i == 3 && oldDir != "right":
 			dir = "left"
 		default:
 		}
@@ -148,7 +149,7 @@ func (game *Game) genRoads() {
 		case "up":
 			y -= 1
 			if y < 0 {
-				y = game.GC.FieldHeight
+				y = game.GC.FieldHeight - 1
 			}
 		case "right":
 			x += 1
@@ -163,7 +164,7 @@ func (game *Game) genRoads() {
 		case "left":
 			x -= 1
 			if x < 0 {
-				x = game.GC.FieldWidth
+				x = game.GC.FieldWidth - 1
 			}
 		default:
 			x, y, dir = oldX, oldY, oldDir
@@ -183,7 +184,6 @@ func (game *Game) genRoads() {
 		default:
 			x, y, dir = oldX, oldY, oldDir
 			continue
-
 		}
 
 		if game.CheckCollisionObstacles(x, y) || game.CheckCollisionTowers(x, y) {
@@ -209,9 +209,12 @@ func (game *Game) genObstacles() {
 			continue
 		}
 
+		uid += 1
 		game.GS.Obstacles = append(game.GS.Obstacles, &ObstacleObj{
 			x: x, y: y,
+			UID:  uid,
 			Name: obstaclesNames[rand.IntN(len(obstaclesNames))],
+			Cost: 100,
 		})
 	}
 }
@@ -230,8 +233,9 @@ func (game *Game) genEnemies() {
 				x: x, y: y,
 				UID:             uid,
 				Progress:        0.0,
+				Health:          1,
+				StartHealth:     1,
 				reward:          1,
-				health:          1,
 				startDelay:      i * 1000,
 				speedMultiplier: 1.0,
 			})
@@ -243,8 +247,9 @@ func (game *Game) genEnemies() {
 				x: x, y: y,
 				UID:             uid,
 				Progress:        0.0,
+				Health:          1,
+				StartHealth:     1,
 				reward:          1,
-				health:          1,
 				startDelay:      i * 250,
 				speedMultiplier: 2.0,
 			})
@@ -256,8 +261,9 @@ func (game *Game) genEnemies() {
 				x: x, y: y,
 				UID:             uid,
 				Progress:        0.0,
+				Health:          10,
+				StartHealth:     10,
 				reward:          3,
-				health:          10,
 				startDelay:      i * 1000,
 				speedMultiplier: 0.5,
 			})
@@ -269,8 +275,9 @@ func (game *Game) genEnemies() {
 				x: x, y: y,
 				UID:             uid,
 				Progress:        0.0,
+				Health:          5,
+				StartHealth:     5,
 				reward:          2,
-				health:          5,
 				startDelay:      i * 250,
 				speedMultiplier: 1.0,
 			})
@@ -282,8 +289,9 @@ func (game *Game) genEnemies() {
 				x: x, y: y,
 				UID:             uid,
 				Progress:        0.0,
+				Health:          10,
+				StartHealth:     10,
 				reward:          3,
-				health:          10,
 				startDelay:      i * 250,
 				speedMultiplier: 2.0,
 			})
@@ -295,8 +303,9 @@ func (game *Game) genEnemies() {
 				x: x, y: y,
 				UID:             uid,
 				Progress:        0.0,
+				Health:          r,
+				StartHealth:     r,
 				reward:          int(float64(r) / 10),
-				health:          r,
 				startDelay:      i * max(10, 250-(r*10)),
 				speedMultiplier: 1.0 + (float64(r) / 10),
 			})
@@ -360,8 +369,6 @@ func (game *Game) StartRound() error {
 func (game *Game) PlaceTower(name string, x, y, pid int) error {
 	if game.GS.State != "started" && game.GS.State != "paused" {
 		return Errors.GameStateNotActive
-	} else if game.GS.Phase != "building" {
-		return Errors.GamePhaseNotBuilding
 	}
 	if pid < 0 || pid >= len(game.Players) {
 		return Errors.InvalidPlayer
@@ -398,8 +405,6 @@ func (game *Game) PlaceTower(name string, x, y, pid int) error {
 func (game *Game) DestoryTower(x, y, pid int) error {
 	if game.GS.State != "started" && game.GS.State != "paused" {
 		return Errors.GameStateNotActive
-	} else if game.GS.Phase != "building" {
-		return Errors.GamePhaseNotBuilding
 	}
 	if pid < 0 || pid >= len(game.Players) {
 		return Errors.InvalidPlayer
@@ -418,12 +423,35 @@ func (game *Game) DestoryTower(x, y, pid int) error {
 	return nil
 }
 
+func (game *Game) DestoryObstacle(x, y, pid int) error {
+	if game.GS.State != "started" && game.GS.State != "paused" {
+		return Errors.GameStateNotActive
+	}
+	if pid < 0 || pid >= len(game.Players) {
+		return Errors.InvalidPlayer
+	}
+	obstacles := game.GetCollisionObstacles(x, y)
+	if len(obstacles) != 1 {
+		return Errors.InvalidSelection
+	}
+	obstacle := obstacles[0]
+
+	if obstacle.Cost > game.Players[pid].Coins {
+		return Errors.InsufficientFunds
+	}
+	game.Players[pid].Coins -= obstacle.Cost
+
+	game.GS.Obstacles = slices.DeleteFunc(game.GS.Obstacles, func(obj *ObstacleObj) bool { return obj.UID == obstacle.UID })
+
+	return nil
+}
+
 func (game *Game) iterateTowers(delta time.Duration) {
 	for _, tower := range game.GS.Towers {
-		if tower.fireProgress < 1 {
-			tower.fireProgress += (float64(delta.Milliseconds()) / 1000) * tower.fireSpeedMultiplier
+		if tower.ReloadProgress < 1 {
+			tower.ReloadProgress += (float64(delta.Milliseconds()) / 1000) * tower.reloadSpeedMultiplier
 		}
-		if tower.fireProgress < 1 {
+		if tower.ReloadProgress < 1 {
 			continue
 		}
 
@@ -433,14 +461,14 @@ func (game *Game) iterateTowers(delta time.Duration) {
 			if i < 0 {
 				continue
 			}
-			enemies[i].health -= min(enemies[i].health, tower.damage)
-			tower.fireProgress -= 1
+			enemies[i].Health -= min(enemies[i].Health, tower.damage)
+			tower.ReloadProgress -= 1
 			tower.Rotation = (math.Atan2(float64(enemies[i].y-tower.y), float64(enemies[i].x-tower.x)) * (180 / math.Pi)) + 90
 			if tower.Rotation < 0 {
 				tower.Rotation += 360
 			}
 
-			if enemies[i].health <= 0 {
+			if enemies[i].Health <= 0 {
 				game.Players[max(len(game.Players)-1, tower.Owner)].Coins += enemies[i].reward
 				game.GS.Enemies = slices.DeleteFunc(game.GS.Enemies, func(obj *EnemyObj) bool { return obj.UID == enemies[i].UID })
 			}
@@ -479,8 +507,8 @@ func (game *Game) Iterate(delta time.Duration) {
 	}
 
 	if game.GS.Phase == "defending" {
-		game.iterateTowers(delta)
-		game.iterateEnemies(delta)
+		game.iterateTowers(delta * time.Duration(game.GC.GameSpeed))
+		game.iterateEnemies(delta * time.Duration(game.GC.GameSpeed))
 
 		if len(game.GS.Enemies) <= 0 {
 			game.GS.Phase = "building"

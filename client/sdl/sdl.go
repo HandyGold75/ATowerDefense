@@ -3,7 +3,6 @@ package clsdl
 import (
 	"ATowerDefense/game"
 	"embed"
-	"fmt"
 	"time"
 
 	"github.com/veandco/go-sdl2/img"
@@ -36,6 +35,8 @@ type (
 
 		textures textures
 
+		warningMsg            string
+		warningMsgTimeout     time.Time
 		lastMiddleMouseMotion time.Time
 	}
 )
@@ -181,6 +182,12 @@ func (cl *SDL) Draw(processTime time.Duration) error {
 		return err
 	}
 
+	if time.Until(cl.warningMsgTimeout) > 0 {
+		if err := cl.renderString(cl.warningMsg, (cl.windowW/2)-(cl.tileW/2)-((cl.tileW/2)*int32(len(cl.warningMsg)/2)), (cl.windowH)-(cl.tileH)); err != nil {
+			return err
+		}
+	}
+
 	cl.renderer.Present()
 	return nil
 }
@@ -201,58 +208,65 @@ func (cl *SDL) Input() error {
 			return game.Errors.Exit
 		case sdl.SCANCODE_P, sdl.SCANCODE_Q:
 			cl.game.TogglePause()
-			return nil
 		case sdl.SCANCODE_RETURN, sdl.SCANCODE_KP_ENTER:
 			if len(game.Towers) < cl.selectedTower {
 				return nil
 			}
-			err := cl.game.PlaceTower(game.Towers[cl.selectedTower].Name, cl.selectedX, cl.selectedY, cl.pid)
-			if err != nil {
-				if err == game.Errors.InvalidPlacement {
-					return cl.game.DestoryTower(cl.selectedX, cl.selectedY, cl.pid)
+			if err := cl.game.PlaceTower(game.Towers[cl.selectedTower].Name, cl.selectedX, cl.selectedY, cl.pid); err != nil {
+				if err != game.Errors.InvalidPlacement {
+					cl.warningMsg = err.Error()
+					cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
+				} else if err := cl.game.DestoryObstacle(cl.selectedX, cl.selectedY, cl.pid); err != nil {
+					if err != game.Errors.InvalidPlacement {
+						cl.warningMsg = err.Error()
+						cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
+					} else if err := cl.game.DestoryTower(cl.selectedX, cl.selectedY, cl.pid); err != nil {
+						cl.warningMsg = err.Error()
+						cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
+					}
 				}
-				return err
 			}
+
 		case sdl.SCANCODE_BACKSPACE, sdl.SCANCODE_DELETE:
-			return cl.game.StartRound()
+			if err := cl.game.StartRound(); err != nil {
+				cl.warningMsg = err.Error()
+				cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
+			}
 
 		case sdl.SCANCODE_W, sdl.SCANCODE_K:
 			cl.selectedY = max(cl.selectedY-1, max(0, -cl.viewOffsetY))
-			return nil
 		case sdl.SCANCODE_S, sdl.SCANCODE_J:
 			cl.selectedY = min(cl.selectedY+1, (cl.game.GC.FieldHeight+min(0, -cl.viewOffsetY))-1)
-			return nil
 		case sdl.SCANCODE_D, sdl.SCANCODE_L:
 			cl.selectedX = min(cl.selectedX+1, (cl.game.GC.FieldWidth+min(0, -cl.viewOffsetX))-1)
-			return nil
 		case sdl.SCANCODE_A, sdl.SCANCODE_H:
 			cl.selectedX = max(cl.selectedX-1, max(0, -cl.viewOffsetX))
-			return nil
 
 		case sdl.SCANCODE_UP:
 			cl.viewOffsetY = min(cl.viewOffsetY+1, (cl.game.GC.FieldHeight-min(int(cl.windowH/cl.tileH), cl.game.GC.FieldHeight))+6)
 			cl.selectedY = max(cl.selectedY-1, max(0, -cl.viewOffsetY))
-			return nil
 		case sdl.SCANCODE_DOWN:
 			cl.viewOffsetY = max(cl.viewOffsetY-1, -5)
 			cl.selectedY = min(cl.selectedY+1, (cl.game.GC.FieldHeight+min(0, -cl.viewOffsetY))-1)
-			return nil
 		case sdl.SCANCODE_RIGHT:
 			cl.viewOffsetX = max(cl.viewOffsetX-1, -5)
 			cl.selectedX = min(cl.selectedX+1, (cl.game.GC.FieldWidth+min(0, -cl.viewOffsetX))-1)
-			return nil
 		case sdl.SCANCODE_LEFT:
 			cl.viewOffsetX = min(cl.viewOffsetX+1, (cl.game.GC.FieldWidth-min(int(cl.windowW/cl.tileW), cl.game.GC.FieldWidth))+5)
 			cl.selectedX = max(cl.selectedX-1, max(0, -cl.viewOffsetX))
-			return nil
 
-		case sdl.SCANCODE_LEFTBRACKET, sdl.SCANCODE_MINUS, sdl.SCANCODE_KP_MINUS:
+		case sdl.SCANCODE_LEFTBRACKET:
 			cl.selectedTower = max(cl.selectedTower-1, 0)
-			return nil
-		case sdl.SCANCODE_RIGHTBRACKET, sdl.SCANCODE_EQUALS, sdl.SCANCODE_KP_PLUS:
+		case sdl.SCANCODE_RIGHTBRACKET:
 			cl.selectedTower = min(cl.selectedTower+1, len(game.Towers)-1)
-			return nil
+
+		case sdl.SCANCODE_EQUALS, sdl.SCANCODE_KP_PLUS:
+			cl.game.GC.GameSpeed = min(cl.game.GC.GameSpeed+1, 9)
+		case sdl.SCANCODE_MINUS, sdl.SCANCODE_KP_MINUS:
+			cl.game.GC.GameSpeed = max(cl.game.GC.GameSpeed-1, 0)
 		}
+
+		return nil
 
 	case *sdl.MouseMotionEvent:
 		switch event.State {
@@ -262,7 +276,6 @@ func (cl *SDL) Input() error {
 			}
 			cl.lastMiddleMouseMotion = time.Now()
 
-			fmt.Println(event.XRel, event.YRel)
 			if event.XRel > 1 {
 				cl.viewOffsetX = min(cl.viewOffsetX+1, (cl.game.GC.FieldWidth-min(int(cl.windowW/cl.tileW), cl.game.GC.FieldWidth))+5)
 			} else if event.XRel < -1 {
@@ -275,13 +288,12 @@ func (cl *SDL) Input() error {
 				cl.viewOffsetY = max(cl.viewOffsetY-1, -5)
 			}
 
-			return nil
-
 		default:
 			cl.selectedX = min(max(int(event.X/cl.tileW)-cl.viewOffsetX, 0), (cl.game.GC.FieldWidth+min(0, -cl.viewOffsetX))-1)
 			cl.selectedY = min(max(int(event.Y/cl.tileH)-cl.viewOffsetY, 0), (cl.game.GC.FieldHeight+min(0, -cl.viewOffsetY))-1)
-			return nil
 		}
+
+		return nil
 
 	case *sdl.MouseButtonEvent:
 		if event.State != sdl.RELEASED {
@@ -293,28 +305,41 @@ func (cl *SDL) Input() error {
 			if len(game.Towers) < cl.selectedTower {
 				return nil
 			}
-			return cl.game.PlaceTower(game.Towers[cl.selectedTower].Name, cl.selectedX, cl.selectedY, cl.pid)
+			if err := cl.game.PlaceTower(game.Towers[cl.selectedTower].Name, cl.selectedX, cl.selectedY, cl.pid); err != nil {
+				cl.warningMsg = err.Error()
+				cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
+			}
 		case sdl.BUTTON_RIGHT:
-			return cl.game.DestoryTower(cl.selectedX, cl.selectedY, cl.pid)
+			if err := cl.game.DestoryObstacle(cl.selectedX, cl.selectedY, cl.pid); err != nil {
+				if err != game.Errors.InvalidPlacement {
+					cl.warningMsg = err.Error()
+					cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
+				} else if err := cl.game.DestoryTower(cl.selectedX, cl.selectedY, cl.pid); err != nil {
+					cl.warningMsg = err.Error()
+					cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
+				}
+			}
 
 		case sdl.BUTTON_X1, sdl.BUTTON_X2:
 			if cl.game.GS.Phase == "defending" {
 				cl.game.TogglePause()
 			} else {
-				return cl.game.StartRound()
+				if err := cl.game.StartRound(); err != nil {
+					cl.warningMsg = err.Error()
+					cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
+				}
 			}
-			return nil
 		}
 
+		return nil
+
 	case *sdl.MouseWheelEvent:
-		fmt.Println(event.X, event.Y)
 		if event.Y > 0 {
 			cl.selectedTower = max(cl.selectedTower-1, 0)
-			return nil
 		} else if event.Y < 0 {
 			cl.selectedTower = min(cl.selectedTower+1, len(game.Towers)-1)
-			return nil
 		}
+		return nil
 	}
 
 	return nil

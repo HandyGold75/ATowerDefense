@@ -189,12 +189,16 @@ func (cl *TUI) Input() error {
 		if len(game.Towers) < cl.selectedTower {
 			return nil
 		}
-		err := cl.game.PlaceTower(game.Towers[cl.selectedTower].Name, cl.selectedX, cl.selectedY, cl.pid)
-		if err != nil {
-			if err == game.Errors.InvalidPlacement {
+		if err := cl.game.PlaceTower(game.Towers[cl.selectedTower].Name, cl.selectedX, cl.selectedY, cl.pid); err != nil {
+			if err != game.Errors.InvalidPlacement {
+				return err
+			}
+			if err := cl.game.DestoryObstacle(cl.selectedX, cl.selectedY, cl.pid); err != nil {
+				if err != game.Errors.InvalidPlacement {
+					return err
+				}
 				return cl.game.DestoryTower(cl.selectedX, cl.selectedY, cl.pid)
 			}
-			return err
 		}
 
 	} else if keyBindContains(cl.keyBinds.Delete, in) {
@@ -237,9 +241,9 @@ func (cl *TUI) Input() error {
 		return nil
 
 	} else if keyBindContains(cl.keyBinds.Plus, in) {
-		return nil
+		cl.game.GC.GameSpeed = min(cl.game.GC.GameSpeed+1, 9)
 	} else if keyBindContains(cl.keyBinds.Minus, in) {
-		return nil
+		cl.game.GC.GameSpeed = max(cl.game.GC.GameSpeed-1, 0)
 	} else if i := keyBindIndex(cl.keyBinds.Numbers, in); i >= 0 {
 		cl.selectedTower = max(min(i, len(game.Towers)-1), 0)
 		return nil
@@ -321,24 +325,24 @@ func (cl *TUI) getField() string {
 }
 
 func (cl *TUI) getUI(processTime time.Duration) string {
-	state := cl.game.GS.Phase
+	phase := cl.game.GS.Phase
 	if cl.game.GS.State == "paused" {
-		state += " [p]"
+		phase += " [p]"
 	}
-	phase := "R:" + strconv.Itoa(cl.game.GS.Round+1)
+	phase += " R:" + strconv.Itoa(cl.game.GS.Round)
 	if cl.game.GS.Phase == "defending" {
-		phase = "E:" + strconv.Itoa(len(cl.game.GS.Enemies))
+		phase += " E:" + strconv.Itoa(len(cl.game.GS.Enemies))
 	}
-	msgLen := len(state) + len(phase) + 1
-	msgLeft := fmt.Sprintf(string(BrightWhite+"%v %v"), state, phase)
+	msgLen := len(phase)
+	msgLeft := fmt.Sprintf(string(BrightWhite+"%v"), phase)
 
 	lag := strconv.FormatInt(processTime.Milliseconds(), 10)
 	if processTime >= cl.game.GC.TickDelay {
 		msgLen -= 4
 		lag = string(Red) + lag
 	}
-	msgLen += len(lag) + len(strconv.Itoa(cl.game.Players[cl.pid].Coins)) + len(strconv.Itoa(cl.game.GS.Health)) + 2
-	msgRight := fmt.Sprintf(string(White+"%v "+BrightYellow+"%v "+BrightRed+"%v"), lag, cl.game.Players[cl.pid].Coins, cl.game.GS.Health)
+	msgLen += len(lag) + len(strconv.Itoa(cl.game.GC.GameSpeed)) + len(strconv.Itoa(cl.game.Players[cl.pid].Coins)) + len(strconv.Itoa(cl.game.GS.Health)) + 3
+	msgRight := fmt.Sprintf(string(White+"%v "+White+"%v "+BrightYellow+"%v "+BrightRed+"%v"), lag, cl.game.GC.GameSpeed, cl.game.Players[cl.pid].Coins, cl.game.GS.Health)
 
 	frame := fmt.Sprintf("\033[0;0H"+string(BGBrightBlack)+"%v"+strings.Repeat(" ", max(1, min(cl.game.GC.FieldWidth*2, cl.maxWidth*2)-msgLen))+"%v"+string(Reset), msgLeft, msgRight)
 

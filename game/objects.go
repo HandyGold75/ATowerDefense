@@ -10,7 +10,12 @@ type (
 
 	ObstacleObj struct {
 		x, y int
+		// Unique identifier.
+		UID int
+		// Obstacle name.
 		Name string
+		// Cost to remove.
+		Cost int
 	}
 	RoadObj struct {
 		x, y int
@@ -21,7 +26,7 @@ type (
 	}
 	TowerObj struct {
 		x, y int
-		// Unique identifier
+		// Unique identifier.
 		UID int
 		// Tower name
 		Name string
@@ -35,23 +40,25 @@ type (
 		Rotation float64
 		// Damage multiplier.
 		damage int
-		// Fire when progress hits 1
-		fireProgress float64
+		// Ready when progress greater or equel to 1
+		ReloadProgress float64
 		// Progress 1 every second * this.
-		fireSpeedMultiplier float64
+		reloadSpeedMultiplier float64
 		// Road objects the tower has range over.
 		effectiveRange []*RoadObj
 	}
 	EnemyObj struct {
 		x, y int
-		// Unique identifier
+		// Unique identifier.
 		UID int
 		// Every 1 progress represents 1 tile moved.
 		Progress float64
+		// Despawn when <= 0.
+		Health int
+		// Starting health.
+		StartHealth int
 		// Amount of coins given once defeated.
 		reward int
-		// Despawn when <= 0.
-		health int
 		// Delay spawning by this compared to phase start in ms.
 		startDelay int
 		// Progress 1 every second * this.

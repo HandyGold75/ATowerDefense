@@ -362,25 +362,30 @@ func (cl *SDL) drawField() error {
 
 	for y := range cl.game.GC.FieldHeight {
 		for x := range cl.game.GC.FieldWidth {
-			dst := cl.newRectP(int32(x+cl.viewOffsetX), int32(y+cl.viewOffsetY), 1, 1)
-			if err := cl.renderer.FillRect(dst); err != nil {
+			dst := cl.newRect(int32(x+cl.viewOffsetX), int32(y+cl.viewOffsetY), 1, 1)
+			if err := cl.renderer.FillRect(&dst); err != nil {
 				return err
 			}
 
 			for _, obj := range cl.game.GetCollisions(x, y) {
 				switch obj := obj.(type) {
 				case *game.ObstacleObj:
-					if err := cl.renderer.Copy(cl.textures.obstacles, cl.srcObstacle(obj), dst); err != nil {
+					if err := cl.renderer.Copy(cl.textures.obstacles, cl.srcObstacle(obj), &dst); err != nil {
 						return err
 					}
 
 				case *game.RoadObj:
-					if err := cl.renderer.Copy(cl.textures.roads, cl.srcRoad(obj), dst); err != nil {
+					if err := cl.renderer.Copy(cl.textures.roads, cl.srcRoad(obj), &dst); err != nil {
 						return err
 					}
 
 				case *game.TowerObj:
-					if err := cl.renderer.Copy(cl.textures.towers, cl.srcTower(obj), dst); err != nil {
+					if err := cl.renderer.Copy(cl.textures.towers, cl.srcTower(obj), &dst); err != nil {
+						return err
+					}
+					dstOffset := dst
+					dstOffset.Y -= int32(float64(cl.tileH) * 0.75)
+					if err := cl.renderer.Copy(cl.textures.ui, cl.newRectP(int32(min(obj.ReloadProgress, 1)*9), 2, 1, 1), &dstOffset); err != nil {
 						return err
 					}
 
@@ -404,12 +409,13 @@ func (cl *SDL) drawField() error {
 				if err := cl.renderer.Copy(cl.textures.enemies, cl.srcEnemy(obj, &dstOffset), &dstOffset); err != nil {
 					return err
 				}
-
-				fmt.Println(obj.UID)
+				dstOffset.Y -= int32(float64(cl.tileH) * 0.75)
+				if err := cl.renderer.Copy(cl.textures.ui, cl.newRectP(int32((float64(obj.Health)/float64(obj.StartHealth))*9), 1, 1, 1), &dstOffset); err != nil {
+					return err
+				}
 			}
 		}
 	}
-	fmt.Println("---")
 
 	return nil
 }
@@ -429,7 +435,7 @@ func (cl *SDL) drawUI(processTime time.Duration) error {
 		return err
 	}
 
-	phase := "R:" + strconv.Itoa(cl.game.GS.Round+1)
+	phase := cl.game.GS.Phase + " R:" + strconv.Itoa(cl.game.GS.Round)
 	if cl.game.GS.Phase == "defending" {
 		phase += " E:" + strconv.Itoa(len(cl.game.GS.Enemies))
 	}
@@ -440,24 +446,22 @@ func (cl *SDL) drawUI(processTime time.Duration) error {
 
 	// if processTime >= cl.game.GC.TickDelay {
 	// }
-	stats := fmt.Sprintf("%v %v %v", processTime.Milliseconds(), cl.game.Players[cl.pid].Coins, cl.game.GS.Health)
+	stats := fmt.Sprintf("%v %v %v %v", cl.game.GC.GameSpeed, processTime.Milliseconds(), cl.game.Players[cl.pid].Coins, cl.game.GS.Health)
 	stats = strings.Repeat(" ", int(cl.windowW/32)-len(stats)-1) + stats
 
 	if err := cl.renderString(stats, 0, 0); err != nil {
 		return err
 	}
 
-	if cl.game.GS.Phase == "building" {
-		for i, tower := range game.Towers {
-			if i == cl.selectedTower {
-				if err := cl.renderString(tower.Name+" <", 0, (cl.windowH-(cl.tileH*int32(len(game.Towers))))+(cl.tileH*int32(i))); err != nil {
-					return err
-				}
-				continue
-			}
-			if err := cl.renderString(tower.Name, 0, (cl.windowH-(cl.tileH*int32(len(game.Towers))))+(cl.tileH*int32(i))); err != nil {
+	for i, tower := range game.Towers {
+		if i == cl.selectedTower {
+			if err := cl.renderString(tower.Name+" <", 0, (cl.windowH-(cl.tileH*int32(len(game.Towers))))+(cl.tileH*int32(i))); err != nil {
 				return err
 			}
+			continue
+		}
+		if err := cl.renderString(tower.Name, 0, (cl.windowH-(cl.tileH*int32(len(game.Towers))))+(cl.tileH*int32(i))); err != nil {
+			return err
 		}
 	}
 
