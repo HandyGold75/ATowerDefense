@@ -6,18 +6,13 @@ import (
 	"ATowerDefense/game"
 	"embed"
 	"fmt"
-	"strconv"
 	"time"
-
-	"github.com/HandyGold75/GOLib/tui"
 )
 
 type (
 	charSet string
 
 	client interface {
-		// Called in a defer, may be called multiple times.
-		Stop()
 		// Called after every game iterations.
 		//
 		// Time spent processing the previous game iteration and draw call is parsed to this function.
@@ -31,6 +26,8 @@ type (
 		// Returning the `game.Errors.Exit` error will cause a succesfull game stop.
 		// Any other error will only be printed.
 		Input() error
+		// Called in a defer, may be called multiple times.
+		Stop()
 	}
 )
 
@@ -38,47 +35,9 @@ var (
 	tickDelay   = time.Millisecond * 50
 	processTime = time.Duration(0)
 
-	//go:embed assets/*.png
+	//go:embed assets/*/*.png
 	assets embed.FS
 )
-
-func menuTUI(gc game.GameConfig) (game.GameConfig, error) {
-	mode := ""
-
-	tui.Defaults.Align = tui.AlignLeft
-	mm := tui.NewMenuBulky("ASnake")
-
-	sp := mm.Menu.NewMenu("SinglePlayer")
-	sp.NewAction("Start", func() { mode = "singleplayer" })
-	spFieldWidth := sp.NewDigit("Field width", gc.FieldWidth, 10, 9999)
-	spFieldHeight := sp.NewDigit("Field height", gc.FieldHeight, 10, 9999)
-
-	mp := mm.Menu.NewMenu("MultiPlayer")
-	mp.NewAction("Connect", func() { mode = "multiplayer" })
-	mpIP := mp.NewIPv4("IP", gc.IP)
-	mpPort := mp.NewDigit("Port", int(gc.Port), 0, 65535)
-
-	if err := mm.Run(); err != nil {
-		return gc, err
-	}
-
-	gc.Mode = mode
-	gc.IP = mpIP.Value()
-
-	port, err := strconv.ParseUint(mpPort.Value(), 10, 16)
-	if err != nil {
-		return gc, err
-	}
-	gc.Port = uint16(port)
-
-	if gc.FieldHeight, err = strconv.Atoi(spFieldHeight.Value()); err != nil {
-		return gc, err
-	}
-	if gc.FieldWidth, err = strconv.Atoi(spFieldWidth.Value()); err != nil {
-		return gc, err
-	}
-	return gc, nil
-}
 
 func Run(tui bool) error {
 	gc := game.GameConfig{
@@ -91,39 +50,25 @@ func Run(tui bool) error {
 		TickDelay:   time.Millisecond * 50,
 	}
 
-	if tui {
-		conf, err := menuTUI(gc)
-		if err != nil {
-			return err
-		}
-		gc = conf
-	}
-
-	gm := game.NewGame(gc)
-	if err := gm.Start(); err != nil {
-		return err
-	}
-	pid := gm.AddPlayer()
-
 	var cl client = nil
+	var gm *game.Game = nil
 	if !tui {
-		c, err := clsdl.NewSDL(gm, pid, assets)
+		c, err := clsdl.NewSDL(gc, assets)
 		if err != nil {
 			return err
 		}
-		cl = c
+		cl, gm = c, c.GM
 	} else {
-		c, err := cltui.NewTUI(gm, pid)
+		c, err := cltui.NewTUI(gc)
 		if err != nil {
 			return err
 		}
-		cl = c
+		cl, gm = c, c.GM
 	}
 
-	defer func() { cl.Stop(); _ = gm.Stop() }()
+	defer cl.Stop()
 	go func() {
-		defer func() { cl.Stop(); _ = gm.Stop() }()
-
+		defer cl.Stop()
 		for gm.GS.State != "stopped" {
 			if err := cl.Input(); err != nil {
 				if err == game.Errors.Exit {
@@ -139,7 +84,6 @@ func Run(tui bool) error {
 		now := time.Now()
 
 		gm.Iterate(time.Since(last))
-
 		if err := cl.Draw(processTime); err != nil {
 			if err == game.Errors.Exit {
 				break
@@ -154,6 +98,5 @@ func Run(tui bool) error {
 	}
 
 	fmt.Print("\r\n")
-
 	return nil
 }

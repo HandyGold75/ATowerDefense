@@ -201,7 +201,6 @@ func (game *Game) genRoads() {
 }
 
 func (game *Game) genObstacles() {
-	obstaclesNames := []string{"lake", "sea", "sand", "hills", "tree", "brick"}
 	for range int(float64(game.GC.FieldWidth+game.GC.FieldHeight) * rand.Float64()) {
 		x, y := rand.IntN(game.GC.FieldWidth), rand.IntN(game.GC.FieldHeight)
 
@@ -213,7 +212,6 @@ func (game *Game) genObstacles() {
 		game.GS.Obstacles = append(game.GS.Obstacles, &ObstacleObj{
 			x: x, y: y,
 			UID:  uid,
-			Name: obstaclesNames[rand.IntN(len(obstaclesNames))],
 			Cost: 100,
 		})
 	}
