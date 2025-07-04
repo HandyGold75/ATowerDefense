@@ -12,8 +12,6 @@ type (
 		x, y int
 		// Unique identifier.
 		UID int
-		// Obstacle name.
-		Name string
 		// Cost to remove.
 		Cost int
 	}
