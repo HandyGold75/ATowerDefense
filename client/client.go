@@ -10,8 +10,6 @@ import (
 )
 
 type (
-	charSet string
-
 	client interface {
 		// Called after every game iterations.
 		//
@@ -32,7 +30,6 @@ type (
 )
 
 var (
-	tickDelay   = time.Millisecond * 50
 	processTime = time.Duration(0)
 
 	//go:embed assets/*/*.png
