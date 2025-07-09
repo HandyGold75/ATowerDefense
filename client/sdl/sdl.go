@@ -324,48 +324,50 @@ func (cl *SDL) Input() error {
 
 func (cl *SDL) loadTheme(theme string) error {
 	loadTexture := func(file string) (*sdl.Texture, error) {
-		data, err := cl.assets.ReadFile(file)
-		if err != nil {
-			return nil, err
+		var rw *sdl.RWops
+		if data, err := cl.assets.ReadFile("assets/" + file); err == nil {
+			rw, _ = sdl.RWFromMem(data)
 		}
-		rw, err := sdl.RWFromMem(data)
-		if err != nil {
-			return nil, err
+		if rw == nil {
+			rw = sdl.RWFromFile("client/assets/"+file, "rb")
 		}
 		defer func() { _ = rw.Free() }()
+
 		srf, err := img.LoadPNGRW(rw)
 		if err != nil {
 			return nil, err
 		}
 		defer srf.Free()
+
 		txr, err := cl.renderer.CreateTextureFromSurface(srf)
 		if err != nil {
 			return nil, err
 		}
+
 		return txr, nil
 	}
 
-	txrText, err := loadTexture("assets/" + theme + "/Text.png")
+	txrText, err := loadTexture(theme + "/Text.png")
 	if err != nil {
 		return err
 	}
-	txrUI, err := loadTexture("assets/" + theme + "/UI.png")
+	txrUI, err := loadTexture(theme + "/UI.png")
 	if err != nil {
 		return err
 	}
-	txrEnvironment, err := loadTexture("assets/" + theme + "/Environment.png")
+	txrEnvironment, err := loadTexture(theme + "/Environment.png")
 	if err != nil {
 		return err
 	}
-	txrRoads, err := loadTexture("assets/" + theme + "/Roads.png")
+	txrRoads, err := loadTexture(theme + "/Roads.png")
 	if err != nil {
 		return err
 	}
-	txrTowers, err := loadTexture("assets/" + theme + "/Towers.png")
+	txrTowers, err := loadTexture(theme + "/Towers.png")
 	if err != nil {
 		return err
 	}
-	txrEnemies, err := loadTexture("assets/" + theme + "/Enemies.png")
+	txrEnemies, err := loadTexture(theme + "/Enemies.png")
 	if err != nil {
 		return err
 	}
