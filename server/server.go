@@ -1,8 +1,11 @@
 package server
 
-import "fmt"
+import (
+	"ATowerDefense/game"
+	"fmt"
+)
 
-func Run(ip string, port uint16) error {
+func Run(gc game.GameConfig) error {
 	fmt.Println("server")
 	return nil
 }

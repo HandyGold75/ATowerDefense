@@ -11,6 +11,7 @@ import (
 type (
 	gameErrors struct {
 		GameStateNotWaiting, GameStateNotActive, GamePhaseNotBuilding,
+		GamePhaseStopped,
 		InvalidPlacement, InvalidSelection, InvalidPlayer,
 		TowerNotExists,
 		InsufficientFunds,
@@ -47,6 +48,7 @@ type (
 		GC      GameConfig
 		GS      GameState
 		Players []Player
+		exit    chan error
 	}
 )
 
@@ -55,6 +57,7 @@ var (
 		GameStateNotWaiting:  errors.New("game state is not waiting"),
 		GameStateNotActive:   errors.New("game state is not started or paused"),
 		GamePhaseNotBuilding: errors.New("game phase is not building"),
+		GamePhaseStopped:     errors.New("game phase is stopped"),
 		InvalidPlacement:     errors.New("object is placed invalid"),
 		InvalidSelection:     errors.New("selection is invalid"),
 		InvalidPlayer:        errors.New("player is invalid"),
@@ -124,6 +127,7 @@ func NewGame(gc GameConfig) *Game {
 			Enemies:   []*EnemyObj{},
 		},
 		Players: []Player{},
+		exit:    make(chan error),
 	}
 }
 
@@ -226,6 +230,20 @@ func (game *Game) genEnemies() {
 	}
 
 	switch r := game.GS.Round; {
+	case r <= 1:
+		for i := range 1 {
+			uid += 1
+			game.GS.Enemies = append(game.GS.Enemies, &EnemyObj{
+				x: x, y: y,
+				UID:             uid,
+				Progress:        0.0,
+				Health:          1,
+				StartHealth:     1,
+				reward:          1,
+				startDelay:      i * 10,
+				speedMultiplier: 1.0,
+			})
+		}
 	case r <= 2:
 		for i := range 15 * r {
 			uid += 1
@@ -402,7 +420,7 @@ func (game *Game) PlaceTower(name string, x, y, pid int) error {
 	return nil
 }
 
-func (game *Game) DestoryTower(x, y, pid int) error {
+func (game *Game) DestroyTower(x, y, pid int) error {
 	if game.GS.State != "started" && game.GS.State != "paused" {
 		return Errors.GameStateNotActive
 	}
@@ -423,7 +441,7 @@ func (game *Game) DestoryTower(x, y, pid int) error {
 	return nil
 }
 
-func (game *Game) DestoryObstacle(x, y, pid int) error {
+func (game *Game) DestroyObstacle(x, y, pid int) error {
 	if game.GS.State != "started" && game.GS.State != "paused" {
 		return Errors.GameStateNotActive
 	}
@@ -446,69 +464,65 @@ func (game *Game) DestoryObstacle(x, y, pid int) error {
 	return nil
 }
 
-func (game *Game) iterateTowers(delta time.Duration) {
-	for _, tower := range game.GS.Towers {
-		if tower.ReloadProgress < 1 {
-			tower.ReloadProgress += (float64(delta.Milliseconds()) / 1000) * tower.reloadSpeedMultiplier
-		}
-		if tower.ReloadProgress < 1 {
-			continue
-		}
-
-		for _, road := range tower.effectiveRange {
-			enemies := game.GetCollisionEnemies(road.x, road.y)
-			i := slices.IndexFunc(enemies, func(obj *EnemyObj) bool { return obj.startDelay <= 0 })
-			if i < 0 {
-				continue
-			}
-			enemies[i].Health -= min(enemies[i].Health, tower.damage)
-			tower.ReloadProgress -= 1
-			tower.Rotation = (math.Atan2(float64(enemies[i].y-tower.y), float64(enemies[i].x-tower.x)) * (180 / math.Pi)) + 90
-			if tower.Rotation < 0 {
-				tower.Rotation += 360
-			}
-
-			if enemies[i].Health <= 0 {
-				game.Players[max(len(game.Players)-1, tower.Owner)].Coins += enemies[i].reward
-				game.GS.Enemies = slices.DeleteFunc(game.GS.Enemies, func(obj *EnemyObj) bool { return obj.UID == enemies[i].UID })
-			}
-			break
-		}
-	}
-}
-
-func (game *Game) iterateEnemies(delta time.Duration) {
-	toPop := []int{}
-	for i, enemy := range game.GS.Enemies {
-		if enemy.startDelay > 0 {
-			enemy.startDelay -= min(enemy.startDelay, int(delta.Milliseconds()))
-			continue
-		}
-
-		enemy.Progress += (float64(delta.Milliseconds()) / 1000) * enemy.speedMultiplier
-
-		if int(enemy.Progress) >= len(game.GS.Roads) {
-			game.GS.Health = max(game.GS.Health-1, 0)
-			toPop = append(toPop, i)
-			continue
-		}
-
-		enemy.x, enemy.y = game.GS.Roads[int(enemy.Progress)].Cord()
-	}
-	slices.Reverse(toPop)
-	for _, i := range toPop {
-		game.GS.Enemies = slices.Delete(game.GS.Enemies, i, i+1)
-	}
-}
-
-func (game *Game) Iterate(delta time.Duration) {
+func (game *Game) iterate(delta time.Duration) {
 	if game.GS.State == "paused" {
 		return
 	}
 
 	if game.GS.Phase == "defending" {
-		game.iterateTowers(delta * time.Duration(game.GC.GameSpeed))
-		game.iterateEnemies(delta * time.Duration(game.GC.GameSpeed))
+		for _, tower := range game.GS.Towers {
+			if tower.ReloadProgress < 1 {
+				tower.ReloadProgress += (float64(delta.Milliseconds()) / 1000) * tower.reloadSpeedMultiplier
+			}
+			if tower.ReloadProgress < 1 {
+				continue
+			}
+
+			for _, road := range tower.effectiveRange {
+				enemies := game.GetCollisionEnemies(road.x, road.y)
+				i := slices.IndexFunc(enemies, func(obj *EnemyObj) bool { return obj.startDelay <= 0 })
+				if i < 0 {
+					continue
+				}
+				enemies[i].Health -= min(enemies[i].Health, tower.damage)
+				tower.ReloadProgress -= 1
+				tower.Rotation = (math.Atan2(float64(enemies[i].y-tower.y), float64(enemies[i].x-tower.x)) * (180 / math.Pi)) + 90
+				if tower.Rotation < 0 {
+					tower.Rotation += 360
+				}
+
+				if enemies[i].Health <= 0 {
+					game.Players[max(len(game.Players)-1, tower.Owner)].Coins += enemies[i].reward
+					game.GS.Enemies = slices.DeleteFunc(game.GS.Enemies, func(obj *EnemyObj) bool { return obj.UID == enemies[i].UID })
+				}
+				break
+			}
+		}
+
+		toPop := []int{}
+		for i, enemy := range game.GS.Enemies {
+			if enemy.startDelay > 0 {
+				enemy.startDelay -= int(delta.Milliseconds())
+				if enemy.startDelay < 0 {
+					enemy.Progress += (float64(-enemy.startDelay) / 1000) * enemy.speedMultiplier
+					enemy.startDelay = 0
+				}
+				continue
+			}
+
+			enemy.Progress += (float64(delta.Milliseconds()) / 1000) * enemy.speedMultiplier
+
+			if int(enemy.Progress) >= len(game.GS.Roads) {
+				game.GS.Health = max(game.GS.Health-1, 0)
+				toPop = append(toPop, i)
+				continue
+			}
+			enemy.x, enemy.y = game.GS.Roads[int(enemy.Progress)].Cord()
+		}
+		slices.Reverse(toPop)
+		for _, i := range toPop {
+			game.GS.Enemies = slices.Delete(game.GS.Enemies, i, i+1)
+		}
 
 		if len(game.GS.Enemies) <= 0 {
 			game.GS.Phase = "building"
@@ -519,4 +533,25 @@ func (game *Game) Iterate(delta time.Duration) {
 			return
 		}
 	}
+}
+
+func (game *Game) Run(callback func(time.Duration) error) error {
+	processTime := time.Duration(0)
+	last := time.Now()
+	for game.GS.State != "stopped" {
+		now := time.Now()
+
+		game.iterate(time.Since(last) * time.Duration(game.GC.GameSpeed))
+		if err := callback(processTime); err != nil {
+			if err == Errors.Exit {
+				return nil
+			}
+			return err
+		}
+
+		last = now
+		processTime = time.Since(now)
+		time.Sleep(game.GC.TickDelay - time.Since(now))
+	}
+	return nil
 }

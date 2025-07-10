@@ -16,7 +16,7 @@ var (
 	}
 
 	// TEXTURES ENVIRONMENT
-	TEXTURE_OBJECTS = [6]vector{
+	TEXTURE_OBSTACLES = [6]vector{
 		{0, 1},
 		{1, 1},
 		{2, 1},
