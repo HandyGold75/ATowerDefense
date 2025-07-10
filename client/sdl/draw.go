@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	backgroundCache = map[int]map[int]*sdl.Rect{}
-	obstacleCache   = map[int]*sdl.Rect{}
+	backgroundCache = map[int]map[int]sdl.Rect{}
+	obstacleCache   = map[int]sdl.Rect{}
 )
 
 func (cl *SDL) newRect(v vector) sdl.Rect {
@@ -24,99 +24,66 @@ func (cl *SDL) newRectP(v vector) *sdl.Rect {
 	return &sdl.Rect{X: v.x * cl.tileW, Y: v.y * cl.tileH, W: cl.tileW, H: cl.tileH}
 }
 
-func (cl *SDL) srcBackground(x, y int) *sdl.Rect {
-	i, ok := backgroundCache[x][y]
-	if !ok {
-		i := cl.newRectP(TEXTURE_BACKGROUND[rand.Int32N(6)])
-		if _, ok := backgroundCache[x]; !ok {
-			backgroundCache[x] = map[int]*sdl.Rect{}
-		}
-		backgroundCache[x][y] = i
-		return i
-	}
-	return i
-}
-
-func (cl *SDL) srcObstacle(obj *game.ObstacleObj) *sdl.Rect {
-	i, ok := obstacleCache[obj.UID]
-	if !ok {
-		i := cl.newRectP(TEXTURE_BACKGROUND[rand.Int32N(6)])
-		obstacleCache[obj.UID] = i
-		return i
-	}
-	return i
-}
-
-func (cl *SDL) srcRoad(obj *game.RoadObj) *sdl.Rect {
-	if obj.Index == 0 {
-		return cl.newRectP(TEXTURE_ROADS["start;"+obj.DirExit])
-	} else if obj.Index == len(cl.GM.GS.Roads)-1 {
-		return cl.newRectP(TEXTURE_ROADS["end;"+obj.DirEntrance])
-	}
-	return cl.newRectP(TEXTURE_ROADS[obj.DirEntrance+";"+obj.DirExit])
-}
-
-func (cl *SDL) srcTower(obj *game.TowerObj) *sdl.Rect {
-	return cl.newRectP(TEXTURE_TOWERS[obj.Name][int32((obj.Rotation/360)*16)])
-}
-
 func (cl *SDL) srcEnemy(obj *game.EnemyObj, dst *sdl.Rect) *sdl.Rect {
 	road := cl.GM.GS.Roads[min(int(obj.Progress), len(cl.GM.GS.Roads)-1)]
 
-	offset := (obj.Progress - float64(int(obj.Progress)))
+	// 0.0 - 0.5; lower makes the rotate anamation longer
+	rotateOffset := float64(1) / 3
+
+	progdec := (obj.Progress - float64(int(obj.Progress)))
 	if obj.Progress < 1 {
-		offset = (offset / 2) + 0.5
+		progdec = (progdec * rotateOffset) + (1 - rotateOffset)
 	} else if int(obj.Progress) >= len(cl.GM.GS.Roads)-1 {
-		offset = (offset / 2)
+		progdec = (progdec * rotateOffset)
 	}
 
 	switch {
-	case offset <= 0.333:
+	case progdec <= rotateOffset:
 		switch road.DirEntrance {
 		case "up":
-			dst.Y -= int32(float64(cl.tileH) * (0.5 - offset))
+			dst.Y -= int32(float64(cl.tileH) * (0.5 - progdec))
 		case "right":
-			dst.X += int32(float64(cl.tileW) * (0.5 - offset))
+			dst.X += int32(float64(cl.tileW) * (0.5 - progdec))
 		case "down":
-			dst.Y += int32(float64(cl.tileH) * (0.5 - offset))
+			dst.Y += int32(float64(cl.tileH) * (0.5 - progdec))
 		case "left":
-			dst.X -= int32(float64(cl.tileW) * (0.5 - offset))
+			dst.X -= int32(float64(cl.tileW) * (0.5 - progdec))
 		}
-		return cl.newRectP(TEXTURE_ENEMIES["dirrev;"+road.DirEntrance])
+		return cl.newRectP(TEXTURE_ENEMIES[road.DirEntrance+";end"])
 
-	case offset >= 0.666:
+	case progdec >= 1-rotateOffset:
 		switch road.DirExit {
 		case "up":
-			dst.Y -= int32(float64(cl.tileH) * (offset - 0.5))
+			dst.Y -= int32(float64(cl.tileH) * (progdec - 0.5))
 		case "right":
-			dst.X += int32(float64(cl.tileW) * (offset - 0.5))
+			dst.X += int32(float64(cl.tileW) * (progdec - 0.5))
 		case "down":
-			dst.Y += int32(float64(cl.tileH) * (offset - 0.5))
+			dst.Y += int32(float64(cl.tileH) * (progdec - 0.5))
 		case "left":
-			dst.X -= int32(float64(cl.tileW) * (offset - 0.5))
+			dst.X -= int32(float64(cl.tileW) * (progdec - 0.5))
 		}
-		return cl.newRectP(TEXTURE_ENEMIES["dir;"+road.DirExit])
+		return cl.newRectP(TEXTURE_ENEMIES["start;"+road.DirExit])
 
 	default:
 		switch road.DirEntrance {
 		case "up":
-			dst.Y -= int32(float64(cl.tileH) * (0.25 - (offset / 2)))
+			dst.Y -= int32(float64(cl.tileH) * (0.25 - (progdec / 2)))
 		case "right":
-			dst.X += int32(float64(cl.tileW) * (0.25 - (offset / 2)))
+			dst.X += int32(float64(cl.tileW) * (0.25 - (progdec / 2)))
 		case "down":
-			dst.Y += int32(float64(cl.tileH) * (0.25 - (offset / 2)))
+			dst.Y += int32(float64(cl.tileH) * (0.25 - (progdec / 2)))
 		case "left":
-			dst.X -= int32(float64(cl.tileW) * (0.25 - (offset / 2)))
+			dst.X -= int32(float64(cl.tileW) * (0.25 - (progdec / 2)))
 		}
 		switch road.DirExit {
 		case "up":
-			dst.Y -= int32(float64(cl.tileH) * ((offset / 2) - 0.25))
+			dst.Y -= int32(float64(cl.tileH) * ((progdec / 2) - 0.25))
 		case "right":
-			dst.X += int32(float64(cl.tileW) * ((offset / 2) - 0.25))
+			dst.X += int32(float64(cl.tileW) * ((progdec / 2) - 0.25))
 		case "down":
-			dst.Y += int32(float64(cl.tileH) * ((offset / 2) - 0.25))
+			dst.Y += int32(float64(cl.tileH) * ((progdec / 2) - 0.25))
 		case "left":
-			dst.X -= int32(float64(cl.tileW) * ((offset / 2) - 0.25))
+			dst.X -= int32(float64(cl.tileW) * ((progdec / 2) - 0.25))
 		}
 		return cl.newRectP(TEXTURE_ENEMIES[road.DirEntrance+";"+road.DirExit])
 	}
@@ -144,24 +111,40 @@ func (cl *SDL) drawField() error {
 	for y := range cl.GM.GC.FieldHeight {
 		for x := range cl.GM.GC.FieldWidth {
 			dst := cl.newRect(vector{int32(x + cl.viewOffsetX), int32(y + cl.viewOffsetY)})
-			if err := cl.renderer.Copy(cl.Textures.environment, cl.srcBackground(x, y), &dst); err != nil {
+			bgSrc, ok := backgroundCache[x][y]
+			if !ok {
+				bgSrc := cl.newRect(TEXTURE_BACKGROUND[rand.Int32N(6)])
+				if _, ok := backgroundCache[x]; !ok {
+					backgroundCache[x] = map[int]sdl.Rect{}
+				}
+				backgroundCache[x][y] = bgSrc
+			}
+			if err := cl.renderer.Copy(cl.Textures.environment, &bgSrc, &dst); err != nil {
 				return err
 			}
 
 			for _, obj := range cl.GM.GetCollisions(x, y) {
 				switch obj := obj.(type) {
 				case *game.ObstacleObj:
-					if err := cl.renderer.Copy(cl.Textures.environment, cl.srcObstacle(obj), &dst); err != nil {
+					src, ok := obstacleCache[obj.UID]
+					if !ok {
+						src = cl.newRect(TEXTURE_BACKGROUND[rand.Int32N(6)])
+						obstacleCache[obj.UID] = src
+					}
+
+					if err := cl.renderer.Copy(cl.Textures.environment, &src, &dst); err != nil {
 						return err
 					}
 
 				case *game.RoadObj:
-					if err := cl.renderer.Copy(cl.Textures.roads, cl.srcRoad(obj), &dst); err != nil {
+					src := cl.newRect(TEXTURE_ROADS[obj.DirEntrance+";"+obj.DirExit])
+					if err := cl.renderer.Copy(cl.Textures.roads, &src, &dst); err != nil {
 						return err
 					}
 
 				case *game.TowerObj:
-					if err := cl.renderer.Copy(cl.Textures.towers, cl.srcTower(obj), &dst); err != nil {
+					src := cl.newRect(TEXTURE_TOWERS[obj.Name][min(int32((obj.Rotation/360)*16), 15)])
+					if err := cl.renderer.Copy(cl.Textures.towers, &src, &dst); err != nil {
 						return err
 					}
 					dstOffset := dst
@@ -207,9 +190,9 @@ func (cl *SDL) drawUI(processTime time.Duration) error {
 			return err
 		}
 		r := game.Towers[cl.selectedTower].Range
-		rect := cl.newRectP(vector{int32(cl.selectedX + cl.viewOffsetX - r), int32(cl.selectedY + cl.viewOffsetY - r)})
-		rect.W, rect.H = int32((r*2)+1)*cl.tileW, int32((r*2)+1)*cl.tileH
-		if err := cl.renderer.FillRect(rect); err != nil {
+		dst := cl.newRectP(vector{int32(cl.selectedX + cl.viewOffsetX - r), int32(cl.selectedY + cl.viewOffsetY - r)})
+		dst.W, dst.H = int32((r*2)+1)*cl.tileW, int32((r*2)+1)*cl.tileH
+		if err := cl.renderer.FillRect(dst); err != nil {
 			return err
 		}
 	}
