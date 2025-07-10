@@ -3,6 +3,7 @@ package clsdl
 import (
 	"ATowerDefense/game"
 	"embed"
+	"fmt"
 	"time"
 
 	"github.com/veandco/go-sdl2/img"
@@ -19,8 +20,8 @@ type (
 		enemies     *sdl.Texture
 	}
 
-	SDL struct {
-		GM  *game.Game
+	clSDL struct {
+		gm  *game.Game
 		pid int
 
 		window   *sdl.Window
@@ -36,7 +37,7 @@ type (
 
 		theme    string
 		themeNew string
-		Textures textures
+		textures textures
 
 		warningMsg            string
 		warningMsgTimeout     time.Time
@@ -44,7 +45,17 @@ type (
 	}
 )
 
-func NewSDL(gc game.GameConfig, assets embed.FS) (*SDL, error) {
+func Run(gc game.GameConfig, assets embed.FS) error {
+	cl, err := newSDL(gc, assets)
+	if err != nil {
+		return err
+	}
+	defer cl.stop()
+	cl.start()
+	return err
+}
+
+func newSDL(gc game.GameConfig, assets embed.FS) (*clSDL, error) {
 	gm := game.NewGame(gc)
 	if err := gm.Start(); err != nil {
 		return nil, err
@@ -69,8 +80,8 @@ func NewSDL(gc game.GameConfig, assets embed.FS) (*SDL, error) {
 		return nil, err
 	}
 
-	cl := &SDL{
-		GM: gm, pid: pid,
+	cl := &clSDL{
+		gm: gm, pid: pid,
 
 		window: w, renderer: r, assets: assets,
 		windowW: tileSize * int32(gm.GC.FieldWidth), windowH: tileSize * int32(gm.GC.FieldHeight),
@@ -80,20 +91,37 @@ func NewSDL(gc game.GameConfig, assets embed.FS) (*SDL, error) {
 		viewOffsetX: 0, viewOffsetY: 0,
 		selectedTower: 0,
 
-		theme: theme, themeNew: theme, Textures: textures{},
+		theme: theme, themeNew: theme, textures: textures{},
 
 		lastMiddleMouseMotion: time.Now(),
 	}
-	if err := cl.loadTheme("old"); err != nil {
+	if err := cl.loadTheme(theme); err != nil {
 		return nil, err
 	}
 
 	return cl, nil
 }
 
-func (cl *SDL) Stop() {
-	if cl.GM.GS.State != "stopped" {
-		_ = cl.GM.Stop()
+func (cl *clSDL) start() {
+	go func() {
+		defer cl.stop()
+		for cl.gm.GS.State != "stopped" {
+			if err := cl.input(); err != nil {
+				if err == game.Errors.Exit {
+					break
+				}
+				fmt.Println(err)
+			}
+		}
+	}()
+	if err := cl.gm.Run(cl.draw); err != nil {
+		fmt.Println(err)
+	}
+}
+
+func (cl *clSDL) stop() {
+	if cl.gm.GS.State != "stopped" {
+		_ = cl.gm.Stop()
 	}
 
 	if cl.window != nil {
@@ -105,33 +133,33 @@ func (cl *SDL) Stop() {
 		cl.renderer = nil
 	}
 
-	if cl.Textures.text != nil {
-		_ = cl.Textures.text.Destroy()
-		cl.Textures.text = nil
+	if cl.textures.text != nil {
+		_ = cl.textures.text.Destroy()
+		cl.textures.text = nil
 	}
-	if cl.Textures.ui != nil {
-		_ = cl.Textures.ui.Destroy()
-		cl.Textures.ui = nil
+	if cl.textures.ui != nil {
+		_ = cl.textures.ui.Destroy()
+		cl.textures.ui = nil
 	}
-	if cl.Textures.environment != nil {
-		_ = cl.Textures.environment.Destroy()
-		cl.Textures.environment = nil
+	if cl.textures.environment != nil {
+		_ = cl.textures.environment.Destroy()
+		cl.textures.environment = nil
 	}
-	if cl.Textures.roads != nil {
-		_ = cl.Textures.roads.Destroy()
-		cl.Textures.roads = nil
+	if cl.textures.roads != nil {
+		_ = cl.textures.roads.Destroy()
+		cl.textures.roads = nil
 	}
-	if cl.Textures.towers != nil {
-		_ = cl.Textures.towers.Destroy()
-		cl.Textures.towers = nil
+	if cl.textures.towers != nil {
+		_ = cl.textures.towers.Destroy()
+		cl.textures.towers = nil
 	}
-	if cl.Textures.enemies != nil {
-		_ = cl.Textures.enemies.Destroy()
-		cl.Textures.enemies = nil
+	if cl.textures.enemies != nil {
+		_ = cl.textures.enemies.Destroy()
+		cl.textures.enemies = nil
 	}
 }
 
-func (cl *SDL) Draw(processTime time.Duration) error {
+func (cl *clSDL) draw(processTime time.Duration) error {
 	if cl.theme != cl.themeNew {
 		if err := cl.loadTheme(cl.themeNew); err != nil {
 			return err
@@ -162,7 +190,7 @@ func (cl *SDL) Draw(processTime time.Duration) error {
 	return nil
 }
 
-func (cl *SDL) Input() error {
+func (cl *clSDL) input() error {
 	event := sdl.WaitEventTimeout(100)
 	switch event := event.(type) {
 	case *sdl.QuitEvent:
@@ -177,9 +205,9 @@ func (cl *SDL) Input() error {
 		case sdl.SCANCODE_ESCAPE:
 			return game.Errors.Exit
 		case sdl.SCANCODE_P, sdl.SCANCODE_Q:
-			cl.GM.TogglePause()
+			cl.gm.TogglePause()
 		case sdl.SCANCODE_BACKSPACE, sdl.SCANCODE_DELETE:
-			if err := cl.GM.StartRound(); err != nil {
+			if err := cl.gm.StartRound(); err != nil {
 				cl.warningMsg = err.Error()
 				cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
 			}
@@ -188,15 +216,15 @@ func (cl *SDL) Input() error {
 			if len(game.Towers) < cl.selectedTower {
 				return nil
 			}
-			if err := cl.GM.PlaceTower(game.Towers[cl.selectedTower].Name, cl.selectedX, cl.selectedY, cl.pid); err != nil {
+			if err := cl.gm.PlaceTower(game.Towers[cl.selectedTower].Name, cl.selectedX, cl.selectedY, cl.pid); err != nil {
 				if err != game.Errors.InvalidPlacement {
 					cl.warningMsg = err.Error()
 					cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
-				} else if err := cl.GM.DestoryObstacle(cl.selectedX, cl.selectedY, cl.pid); err != nil {
+				} else if err := cl.gm.DestroyObstacle(cl.selectedX, cl.selectedY, cl.pid); err != nil {
 					if err != game.Errors.InvalidPlacement {
 						cl.warningMsg = err.Error()
 						cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
-					} else if err := cl.GM.DestoryTower(cl.selectedX, cl.selectedY, cl.pid); err != nil {
+					} else if err := cl.gm.DestroyTower(cl.selectedX, cl.selectedY, cl.pid); err != nil {
 						cl.warningMsg = err.Error()
 						cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
 					}
@@ -213,23 +241,23 @@ func (cl *SDL) Input() error {
 		case sdl.SCANCODE_W, sdl.SCANCODE_K:
 			cl.selectedY = max(cl.selectedY-1, max(0, -cl.viewOffsetY))
 		case sdl.SCANCODE_S, sdl.SCANCODE_J:
-			cl.selectedY = min(cl.selectedY+1, (cl.GM.GC.FieldHeight+min(0, -cl.viewOffsetY))-1)
+			cl.selectedY = min(cl.selectedY+1, (cl.gm.GC.FieldHeight+min(0, -cl.viewOffsetY))-1)
 		case sdl.SCANCODE_D, sdl.SCANCODE_L:
-			cl.selectedX = min(cl.selectedX+1, (cl.GM.GC.FieldWidth+min(0, -cl.viewOffsetX))-1)
+			cl.selectedX = min(cl.selectedX+1, (cl.gm.GC.FieldWidth+min(0, -cl.viewOffsetX))-1)
 		case sdl.SCANCODE_A, sdl.SCANCODE_H:
 			cl.selectedX = max(cl.selectedX-1, max(0, -cl.viewOffsetX))
 
 		case sdl.SCANCODE_UP:
-			cl.viewOffsetY = min(cl.viewOffsetY+1, (cl.GM.GC.FieldHeight-min(int(cl.windowH/cl.tileH), cl.GM.GC.FieldHeight))+6)
+			cl.viewOffsetY = min(cl.viewOffsetY+1, (cl.gm.GC.FieldHeight-min(int(cl.windowH/cl.tileH), cl.gm.GC.FieldHeight))+6)
 			cl.selectedY = max(cl.selectedY-1, max(0, -cl.viewOffsetY))
 		case sdl.SCANCODE_DOWN:
 			cl.viewOffsetY = max(cl.viewOffsetY-1, -5)
-			cl.selectedY = min(cl.selectedY+1, (cl.GM.GC.FieldHeight+min(0, -cl.viewOffsetY))-1)
+			cl.selectedY = min(cl.selectedY+1, (cl.gm.GC.FieldHeight+min(0, -cl.viewOffsetY))-1)
 		case sdl.SCANCODE_RIGHT:
 			cl.viewOffsetX = max(cl.viewOffsetX-1, -5)
-			cl.selectedX = min(cl.selectedX+1, (cl.GM.GC.FieldWidth+min(0, -cl.viewOffsetX))-1)
+			cl.selectedX = min(cl.selectedX+1, (cl.gm.GC.FieldWidth+min(0, -cl.viewOffsetX))-1)
 		case sdl.SCANCODE_LEFT:
-			cl.viewOffsetX = min(cl.viewOffsetX+1, (cl.GM.GC.FieldWidth-min(int(cl.windowW/cl.tileW), cl.GM.GC.FieldWidth))+5)
+			cl.viewOffsetX = min(cl.viewOffsetX+1, (cl.gm.GC.FieldWidth-min(int(cl.windowW/cl.tileW), cl.gm.GC.FieldWidth))+5)
 			cl.selectedX = max(cl.selectedX-1, max(0, -cl.viewOffsetX))
 
 		case sdl.SCANCODE_LEFTBRACKET:
@@ -238,9 +266,9 @@ func (cl *SDL) Input() error {
 			cl.selectedTower = min(cl.selectedTower+1, len(game.Towers)-1)
 
 		case sdl.SCANCODE_EQUALS, sdl.SCANCODE_KP_PLUS:
-			cl.GM.GC.GameSpeed = min(cl.GM.GC.GameSpeed+1, 9)
+			cl.gm.GC.GameSpeed = min(cl.gm.GC.GameSpeed+1, 9)
 		case sdl.SCANCODE_MINUS, sdl.SCANCODE_KP_MINUS:
-			cl.GM.GC.GameSpeed = max(cl.GM.GC.GameSpeed-1, 0)
+			cl.gm.GC.GameSpeed = max(cl.gm.GC.GameSpeed-1, 0)
 		}
 
 		return nil
@@ -254,20 +282,20 @@ func (cl *SDL) Input() error {
 			cl.lastMiddleMouseMotion = time.Now()
 
 			if event.XRel > 0 {
-				cl.viewOffsetX = min(cl.viewOffsetX+1, (cl.GM.GC.FieldWidth-min(int(cl.windowW/cl.tileW), cl.GM.GC.FieldWidth))+5)
+				cl.viewOffsetX = min(cl.viewOffsetX+1, (cl.gm.GC.FieldWidth-min(int(cl.windowW/cl.tileW), cl.gm.GC.FieldWidth))+5)
 			} else if event.XRel < 0 {
 				cl.viewOffsetX = max(cl.viewOffsetX-1, -5)
 			}
 
 			if event.YRel > 0 {
-				cl.viewOffsetY = min(cl.viewOffsetY+1, (cl.GM.GC.FieldHeight-min(int(cl.windowH/cl.tileH), cl.GM.GC.FieldHeight))+6)
+				cl.viewOffsetY = min(cl.viewOffsetY+1, (cl.gm.GC.FieldHeight-min(int(cl.windowH/cl.tileH), cl.gm.GC.FieldHeight))+6)
 			} else if event.YRel < 0 {
 				cl.viewOffsetY = max(cl.viewOffsetY-1, -5)
 			}
 
 		default:
-			cl.selectedX = min(max(int(event.X/cl.tileW)-cl.viewOffsetX, 0), (cl.GM.GC.FieldWidth+min(0, -cl.viewOffsetX))-1)
-			cl.selectedY = min(max(int(event.Y/cl.tileH)-cl.viewOffsetY, 0), (cl.GM.GC.FieldHeight+min(0, -cl.viewOffsetY))-1)
+			cl.selectedX = min(max(int(event.X/cl.tileW)-cl.viewOffsetX, 0), (cl.gm.GC.FieldWidth+min(0, -cl.viewOffsetX))-1)
+			cl.selectedY = min(max(int(event.Y/cl.tileH)-cl.viewOffsetY, 0), (cl.gm.GC.FieldHeight+min(0, -cl.viewOffsetY))-1)
 		}
 
 		return nil
@@ -282,26 +310,26 @@ func (cl *SDL) Input() error {
 			if len(game.Towers) < cl.selectedTower {
 				return nil
 			}
-			if err := cl.GM.PlaceTower(game.Towers[cl.selectedTower].Name, cl.selectedX, cl.selectedY, cl.pid); err != nil {
+			if err := cl.gm.PlaceTower(game.Towers[cl.selectedTower].Name, cl.selectedX, cl.selectedY, cl.pid); err != nil {
 				cl.warningMsg = err.Error()
 				cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
 			}
 		case sdl.BUTTON_RIGHT:
-			if err := cl.GM.DestoryObstacle(cl.selectedX, cl.selectedY, cl.pid); err != nil {
+			if err := cl.gm.DestroyObstacle(cl.selectedX, cl.selectedY, cl.pid); err != nil {
 				if err != game.Errors.InvalidPlacement {
 					cl.warningMsg = err.Error()
 					cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
-				} else if err := cl.GM.DestoryTower(cl.selectedX, cl.selectedY, cl.pid); err != nil {
+				} else if err := cl.gm.DestroyTower(cl.selectedX, cl.selectedY, cl.pid); err != nil {
 					cl.warningMsg = err.Error()
 					cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
 				}
 			}
 
 		case sdl.BUTTON_X1, sdl.BUTTON_X2:
-			if cl.GM.GS.Phase == "defending" {
-				cl.GM.TogglePause()
+			if cl.gm.GS.Phase == "defending" {
+				cl.gm.TogglePause()
 			} else {
-				if err := cl.GM.StartRound(); err != nil {
+				if err := cl.gm.StartRound(); err != nil {
 					cl.warningMsg = err.Error()
 					cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
 				}
@@ -322,14 +350,15 @@ func (cl *SDL) Input() error {
 	return nil
 }
 
-func (cl *SDL) loadTheme(theme string) error {
+func (cl *clSDL) loadTheme(theme string) error {
 	loadTexture := func(file string) (*sdl.Texture, error) {
 		var rw *sdl.RWops
-		if data, err := cl.assets.ReadFile("assets/" + file); err == nil {
+		if data, err := cl.assets.ReadFile("client/assets/" + file); err == nil {
 			rw, _ = sdl.RWFromMem(data)
 		}
 		if rw == nil {
 			rw = sdl.RWFromFile("client/assets/"+file, "rb")
+			fmt.Println("Warning, theme \"" + file + "\" loaded from disk")
 		}
 		defer func() { _ = rw.Free() }()
 
@@ -372,45 +401,45 @@ func (cl *SDL) loadTheme(theme string) error {
 		return err
 	}
 
-	if cl.Textures.text != nil {
-		if err := cl.Textures.text.Destroy(); err != nil {
+	if cl.textures.text != nil {
+		if err := cl.textures.text.Destroy(); err != nil {
 			return err
 		}
-		cl.Textures.text = nil
+		cl.textures.text = nil
 	}
-	if cl.Textures.ui != nil {
-		if err := cl.Textures.ui.Destroy(); err != nil {
+	if cl.textures.ui != nil {
+		if err := cl.textures.ui.Destroy(); err != nil {
 			return err
 		}
-		cl.Textures.ui = nil
+		cl.textures.ui = nil
 	}
-	if cl.Textures.environment != nil {
-		if err := cl.Textures.environment.Destroy(); err != nil {
+	if cl.textures.environment != nil {
+		if err := cl.textures.environment.Destroy(); err != nil {
 			return err
 		}
-		cl.Textures.environment = nil
+		cl.textures.environment = nil
 	}
-	if cl.Textures.roads != nil {
-		if err := cl.Textures.roads.Destroy(); err != nil {
+	if cl.textures.roads != nil {
+		if err := cl.textures.roads.Destroy(); err != nil {
 			return err
 		}
-		cl.Textures.roads = nil
+		cl.textures.roads = nil
 	}
-	if cl.Textures.towers != nil {
-		if err := cl.Textures.towers.Destroy(); err != nil {
+	if cl.textures.towers != nil {
+		if err := cl.textures.towers.Destroy(); err != nil {
 			return err
 		}
-		cl.Textures.towers = nil
+		cl.textures.towers = nil
 	}
-	if cl.Textures.enemies != nil {
-		if err := cl.Textures.enemies.Destroy(); err != nil {
+	if cl.textures.enemies != nil {
+		if err := cl.textures.enemies.Destroy(); err != nil {
 			return err
 		}
-		cl.Textures.enemies = nil
+		cl.textures.enemies = nil
 	}
 
 	cl.theme = theme
-	cl.Textures = textures{
+	cl.textures = textures{
 		text:        txrText,
 		ui:          txrUI,
 		environment: txrEnvironment,

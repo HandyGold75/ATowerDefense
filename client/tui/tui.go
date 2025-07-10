@@ -18,17 +18,17 @@ type (
 	color string
 
 	keybinds struct {
-		Exit, Pause, Confirm, Delete,
-		Up, Down, Right, Left,
-		PanUp, PanDown, PanRight, PanLeft,
-		SquereBracketLeft, SquereBracketRight,
-		Plus, Minus,
-		Numbers []keybind
+		exit, pause, confirm, delete,
+		up, down, right, left,
+		panUp, panDown, panRight, panLeft,
+		squereBracketLeft, squereBracketRight,
+		plus, minus,
+		numbers []keybind
 	}
 	keybind []byte
 
-	TUI struct {
-		GM  *game.Game
+	clTUI struct {
+		gm  *game.Game
 		pid int
 
 		oldState *term.State
@@ -90,7 +90,18 @@ const (
 	BGBrightWhite   color = "\033[107m"
 )
 
-func NewTUI(gc game.GameConfig) (*TUI, error) {
+func Run(gc game.GameConfig) error {
+	cl, err := newTUI(gc)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer cl.stop()
+	cl.start()
+	return nil
+}
+
+func newTUI(gc game.GameConfig) (*clTUI, error) {
 	gm := game.NewGame(gc)
 	if err := gm.Start(); err != nil {
 		return nil, err
@@ -148,8 +159,8 @@ func NewTUI(gc game.GameConfig) (*TUI, error) {
 		return nil, err
 	}
 
-	return &TUI{
-		GM: gm, pid: pid,
+	return &clTUI{
+		gm: gm, pid: pid,
 		oldState: state,
 
 		selectedX: 0, selectedY: 0,
@@ -160,49 +171,78 @@ func NewTUI(gc game.GameConfig) (*TUI, error) {
 
 		keyBinds: keybinds{
 			// ESC, CTRL_C, CTRL_D,
-			Exit: []keybind{{27, 0, 0}, {3, 0, 0}, {4, 0, 0}},
+			exit: []keybind{{27, 0, 0}, {3, 0, 0}, {4, 0, 0}},
 			// P, Q
-			Pause: []keybind{{112, 0, 0}, {113, 0, 0}},
+			pause: []keybind{{112, 0, 0}, {113, 0, 0}},
 			// RETURN
-			Confirm: []keybind{{13, 0, 0}},
+			confirm: []keybind{{13, 0, 0}},
 			// BACKSPACE, DEL
-			Delete: []keybind{{127, 0, 0}, {27, 91, 51}},
+			delete: []keybind{{127, 0, 0}, {27, 91, 51}},
 
 			// W, K
-			Up: []keybind{{119, 0, 0}, {107, 0, 0}},
+			up: []keybind{{119, 0, 0}, {107, 0, 0}},
 			// S, J
-			Down: []keybind{{115, 0, 0}, {106, 0, 0}},
+			down: []keybind{{115, 0, 0}, {106, 0, 0}},
 			// D, L
-			Right: []keybind{{100, 0, 0}, {108, 0, 0}},
+			right: []keybind{{100, 0, 0}, {108, 0, 0}},
 			// A, H
-			Left: []keybind{{97, 0, 0}, {104, 0, 0}},
+			left: []keybind{{97, 0, 0}, {104, 0, 0}},
 
 			// UP
-			PanUp: []keybind{{27, 91, 65}},
+			panUp: []keybind{{27, 91, 65}},
 			// DOWN
-			PanDown: []keybind{{27, 91, 66}},
+			panDown: []keybind{{27, 91, 66}},
 			// RIGHT,
-			PanRight: []keybind{{27, 91, 67}},
+			panRight: []keybind{{27, 91, 67}},
 			// LEFT,
-			PanLeft: []keybind{{27, 91, 68}},
+			panLeft: []keybind{{27, 91, 68}},
 
 			// [
-			SquereBracketLeft: []keybind{{91, 0, 0}},
+			squereBracketLeft: []keybind{{91, 0, 0}},
 			// ]
-			SquereBracketRight: []keybind{{93, 0, 0}},
+			squereBracketRight: []keybind{{93, 0, 0}},
 
 			// +
-			Plus: []keybind{{43, 0, 0}},
+			plus: []keybind{{43, 0, 0}},
 			// -
-			Minus: []keybind{{45, 0, 0}},
+			minus: []keybind{{45, 0, 0}},
 
 			// 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-			Numbers: []keybind{{48, 0, 0}, {49, 0, 0}, {50, 0, 0}, {51, 0, 0}, {52, 0, 0}, {53, 0, 0}, {54, 0, 0}, {55, 0, 0}, {56, 0, 0}, {57, 0, 0}},
+			numbers: []keybind{{48, 0, 0}, {49, 0, 0}, {50, 0, 0}, {51, 0, 0}, {52, 0, 0}, {53, 0, 0}, {54, 0, 0}, {55, 0, 0}, {56, 0, 0}, {57, 0, 0}},
 		},
 	}, nil
 }
 
-func (cl *TUI) Draw(processTime time.Duration) error {
+func (cl *clTUI) start() {
+	go func() {
+		defer cl.stop()
+		for cl.gm.GS.State != "stopped" {
+			if err := cl.input(); err != nil {
+				if err == game.Errors.Exit {
+					break
+				}
+				fmt.Println(err)
+			}
+		}
+	}()
+	if err := cl.gm.Run(cl.draw); err != nil {
+		fmt.Println(err)
+	}
+}
+
+func (cl *clTUI) stop() {
+	if cl.gm.GS.State != "stopped" {
+		_ = cl.gm.Stop()
+	}
+
+	if cl.oldState != nil {
+		_ = term.Restore(int(os.Stdin.Fd()), cl.oldState)
+		cl.oldState = nil
+	}
+	fmt.Print("\r\n")
+}
+
+func (cl *clTUI) draw(processTime time.Duration) error {
 	mw, mh, err := term.GetSize(int(os.Stdin.Fd()))
 	if err != nil {
 		return err
@@ -213,88 +253,77 @@ func (cl *TUI) Draw(processTime time.Duration) error {
 	return nil
 }
 
-func (cl *TUI) Stop() {
-	if cl.GM.GS.State != "stopped" {
-		_ = cl.GM.Stop()
-	}
-
-	if cl.oldState != nil {
-		_ = term.Restore(int(os.Stdin.Fd()), cl.oldState)
-		cl.oldState = nil
-	}
-}
-
-func (cl *TUI) Input() error {
+func (cl *clTUI) input() error {
 	in := make([]byte, 3)
 	if _, err := os.Stdin.Read(in); err != nil {
 		return err
 	}
 
-	if keyBindContains(cl.keyBinds.Exit, in) {
+	if keyBindContains(cl.keyBinds.exit, in) {
 		return game.Errors.Exit
-	} else if keyBindContains(cl.keyBinds.Pause, in) {
-		cl.GM.TogglePause()
+	} else if keyBindContains(cl.keyBinds.pause, in) {
+		cl.gm.TogglePause()
 		return nil
-	} else if keyBindContains(cl.keyBinds.Confirm, in) {
+	} else if keyBindContains(cl.keyBinds.confirm, in) {
 		if len(game.Towers) < cl.selectedTower {
 			return nil
 		}
-		if err := cl.GM.PlaceTower(game.Towers[cl.selectedTower].Name, cl.selectedX, cl.selectedY, cl.pid); err != nil {
+		if err := cl.gm.PlaceTower(game.Towers[cl.selectedTower].Name, cl.selectedX, cl.selectedY, cl.pid); err != nil {
 			if err != game.Errors.InvalidPlacement {
 				return err
 			}
-			if err := cl.GM.DestoryObstacle(cl.selectedX, cl.selectedY, cl.pid); err != nil {
+			if err := cl.gm.DestroyObstacle(cl.selectedX, cl.selectedY, cl.pid); err != nil {
 				if err != game.Errors.InvalidPlacement {
 					return err
 				}
-				return cl.GM.DestoryTower(cl.selectedX, cl.selectedY, cl.pid)
+				return cl.gm.DestroyTower(cl.selectedX, cl.selectedY, cl.pid)
 			}
 		}
 
-	} else if keyBindContains(cl.keyBinds.Delete, in) {
-		return cl.GM.StartRound()
-	} else if keyBindContains(cl.keyBinds.Up, in) {
+	} else if keyBindContains(cl.keyBinds.delete, in) {
+		return cl.gm.StartRound()
+	} else if keyBindContains(cl.keyBinds.up, in) {
 		cl.selectedY = max(cl.selectedY-1, max(0, cl.viewOffsetY))
 		return nil
-	} else if keyBindContains(cl.keyBinds.Down, in) {
-		cl.selectedY = min(cl.selectedY+1, min(cl.GM.GC.FieldHeight, min(cl.maxHeight, cl.GM.GC.FieldHeight)+cl.viewOffsetY)-1)
+	} else if keyBindContains(cl.keyBinds.down, in) {
+		cl.selectedY = min(cl.selectedY+1, min(cl.gm.GC.FieldHeight, min(cl.maxHeight, cl.gm.GC.FieldHeight)+cl.viewOffsetY)-1)
 		return nil
-	} else if keyBindContains(cl.keyBinds.Right, in) {
-		cl.selectedX = min(cl.selectedX+1, min(cl.GM.GC.FieldWidth, min(cl.maxWidth, cl.GM.GC.FieldWidth)+cl.viewOffsetX)-1)
+	} else if keyBindContains(cl.keyBinds.right, in) {
+		cl.selectedX = min(cl.selectedX+1, min(cl.gm.GC.FieldWidth, min(cl.maxWidth, cl.gm.GC.FieldWidth)+cl.viewOffsetX)-1)
 		return nil
-	} else if keyBindContains(cl.keyBinds.Left, in) {
+	} else if keyBindContains(cl.keyBinds.left, in) {
 		cl.selectedX = max(cl.selectedX-1, max(0, cl.viewOffsetX))
 		return nil
 
-	} else if keyBindContains(cl.keyBinds.PanUp, in) {
+	} else if keyBindContains(cl.keyBinds.panUp, in) {
 		cl.viewOffsetY = max(cl.viewOffsetY-1, -5)
 		cl.selectedY = max(cl.selectedY-1, max(0, cl.viewOffsetY))
 		return nil
-	} else if keyBindContains(cl.keyBinds.PanDown, in) {
-		cl.viewOffsetY = min(cl.viewOffsetY+1, (cl.GM.GC.FieldHeight-min(cl.maxHeight, cl.GM.GC.FieldHeight))+6)
-		cl.selectedY = min(cl.selectedY+1, (cl.GM.GC.FieldHeight+min(0, cl.viewOffsetY))-1)
+	} else if keyBindContains(cl.keyBinds.panDown, in) {
+		cl.viewOffsetY = min(cl.viewOffsetY+1, (cl.gm.GC.FieldHeight-min(cl.maxHeight, cl.gm.GC.FieldHeight))+6)
+		cl.selectedY = min(cl.selectedY+1, (cl.gm.GC.FieldHeight+min(0, cl.viewOffsetY))-1)
 		return nil
-	} else if keyBindContains(cl.keyBinds.PanRight, in) {
-		cl.viewOffsetX = min(cl.viewOffsetX+1, (cl.GM.GC.FieldWidth-min(cl.maxWidth, cl.GM.GC.FieldWidth))+5)
-		cl.selectedX = min(cl.selectedX+1, (cl.GM.GC.FieldWidth+min(0, cl.viewOffsetX))-1)
+	} else if keyBindContains(cl.keyBinds.panRight, in) {
+		cl.viewOffsetX = min(cl.viewOffsetX+1, (cl.gm.GC.FieldWidth-min(cl.maxWidth, cl.gm.GC.FieldWidth))+5)
+		cl.selectedX = min(cl.selectedX+1, (cl.gm.GC.FieldWidth+min(0, cl.viewOffsetX))-1)
 		return nil
-	} else if keyBindContains(cl.keyBinds.PanLeft, in) {
+	} else if keyBindContains(cl.keyBinds.panLeft, in) {
 		cl.viewOffsetX = max(cl.viewOffsetX-1, -5)
 		cl.selectedX = max(cl.selectedX-1, max(0, cl.viewOffsetX))
 		return nil
 
-	} else if keyBindContains(cl.keyBinds.SquereBracketLeft, in) {
+	} else if keyBindContains(cl.keyBinds.squereBracketLeft, in) {
 		cl.selectedTower = max(cl.selectedTower-1, 0)
 		return nil
-	} else if keyBindContains(cl.keyBinds.SquereBracketRight, in) {
+	} else if keyBindContains(cl.keyBinds.squereBracketRight, in) {
 		cl.selectedTower = min(cl.selectedTower+1, len(game.Towers)-1)
 		return nil
 
-	} else if keyBindContains(cl.keyBinds.Plus, in) {
-		cl.GM.GC.GameSpeed = min(cl.GM.GC.GameSpeed+1, 9)
-	} else if keyBindContains(cl.keyBinds.Minus, in) {
-		cl.GM.GC.GameSpeed = max(cl.GM.GC.GameSpeed-1, 0)
-	} else if i := keyBindIndex(cl.keyBinds.Numbers, in); i >= 0 {
+	} else if keyBindContains(cl.keyBinds.plus, in) {
+		cl.gm.GC.GameSpeed = min(cl.gm.GC.GameSpeed+1, 9)
+	} else if keyBindContains(cl.keyBinds.minus, in) {
+		cl.gm.GC.GameSpeed = max(cl.gm.GC.GameSpeed-1, 0)
+	} else if i := keyBindIndex(cl.keyBinds.numbers, in); i >= 0 {
 		cl.selectedTower = max(min(i, len(game.Towers)-1), 0)
 		return nil
 
@@ -311,22 +340,22 @@ func keyBindIndex(kb []keybind, b []byte) int {
 	return slices.IndexFunc(kb, func(v keybind) bool { return slices.Equal(v, b) })
 }
 
-func (cl *TUI) getField() string {
+func (cl *clTUI) getField() string {
 	frame := "\033[2;0H"
-	for y := range min(cl.GM.GC.FieldHeight, cl.maxHeight) {
+	for y := range min(cl.gm.GC.FieldHeight, cl.maxHeight) {
 		if y != 0 {
 			frame += "\r\n"
 		}
-		if y+cl.viewOffsetY < 0 || y+cl.viewOffsetY >= cl.GM.GC.FieldHeight {
-			frame += strings.Repeat(string(BGBrightBlack+BrightBlack+"  "+Reset), min(cl.GM.GC.FieldWidth, cl.maxWidth))
+		if y+cl.viewOffsetY < 0 || y+cl.viewOffsetY >= cl.gm.GC.FieldHeight {
+			frame += strings.Repeat(string(BGBrightBlack+BrightBlack+"  "+Reset), min(cl.gm.GC.FieldWidth, cl.maxWidth))
 			continue
 		}
-		for x := range min(cl.GM.GC.FieldWidth, cl.maxWidth) {
-			if x+cl.viewOffsetX < 0 || x+cl.viewOffsetX >= cl.GM.GC.FieldWidth {
+		for x := range min(cl.gm.GC.FieldWidth, cl.maxWidth) {
+			if x+cl.viewOffsetX < 0 || x+cl.viewOffsetX >= cl.gm.GC.FieldWidth {
 				frame += string(BGBrightBlack + BrightBlack + "  " + Reset)
 			} else if x+cl.viewOffsetX == cl.selectedX && y+cl.viewOffsetY == cl.selectedY {
 				frame += string(BGGreen + Black + "" + Reset)
-			} else if objects := cl.GM.GetCollisions(x+cl.viewOffsetX, y+cl.viewOffsetY); len(objects) > 0 {
+			} else if objects := cl.gm.GetCollisions(x+cl.viewOffsetX, y+cl.viewOffsetY); len(objects) > 0 {
 				switch obj := objects[len(objects)-1].(type) {
 				case *game.ObstacleObj:
 					frame += string(BGBrightYellow + BrightBlue + "" + Reset)
@@ -335,7 +364,7 @@ func (cl *TUI) getField() string {
 					if obj.Index == 0 {
 						frame += string(BGGreen + White + BrightBlack + " 󰮢" + Reset)
 						continue
-					} else if obj.Index == len(cl.GM.GS.Roads)-1 {
+					} else if obj.Index == len(cl.gm.GS.Roads)-1 {
 						frame += string(BGGreen + White + BrightBlack + " 󰄚" + Reset)
 						continue
 					}
@@ -374,31 +403,31 @@ func (cl *TUI) getField() string {
 	return frame
 }
 
-func (cl *TUI) getUI(processTime time.Duration) string {
-	phase := cl.GM.GS.Phase
-	if cl.GM.GS.State == "paused" {
+func (cl *clTUI) getUI(processTime time.Duration) string {
+	phase := cl.gm.GS.Phase
+	if cl.gm.GS.State == "paused" {
 		phase += " [p]"
 	}
-	phase += " R:" + strconv.Itoa(cl.GM.GS.Round)
-	if cl.GM.GS.Phase == "defending" {
-		phase += " E:" + strconv.Itoa(len(cl.GM.GS.Enemies))
+	phase += " R:" + strconv.Itoa(cl.gm.GS.Round)
+	if cl.gm.GS.Phase == "defending" {
+		phase += " E:" + strconv.Itoa(len(cl.gm.GS.Enemies))
 	}
 	msgLen := len(phase)
 	msgLeft := fmt.Sprintf(string(BrightWhite+"%v"), phase)
 
 	lag := strconv.FormatInt(processTime.Milliseconds(), 10)
-	if processTime >= cl.GM.GC.TickDelay {
+	if processTime >= cl.gm.GC.TickDelay {
 		msgLen -= 4
 		lag = string(Red) + lag
 	}
-	msgLen += len(lag) + len(strconv.Itoa(cl.GM.GC.GameSpeed)) + len(strconv.Itoa(cl.GM.Players[cl.pid].Coins)) + len(strconv.Itoa(cl.GM.GS.Health)) + 3
-	msgRight := fmt.Sprintf(string(White+"%v "+White+"%v "+BrightYellow+"%v "+BrightRed+"%v"), lag, cl.GM.GC.GameSpeed, cl.GM.Players[cl.pid].Coins, cl.GM.GS.Health)
+	msgLen += len(lag) + len(strconv.Itoa(cl.gm.GC.GameSpeed)) + len(strconv.Itoa(cl.gm.Players[cl.pid].Coins)) + len(strconv.Itoa(cl.gm.GS.Health)) + 3
+	msgRight := fmt.Sprintf(string(White+"%v "+White+"%v "+BrightYellow+"%v "+BrightRed+"%v"), lag, cl.gm.GC.GameSpeed, cl.gm.Players[cl.pid].Coins, cl.gm.GS.Health)
 
-	frame := fmt.Sprintf("\033[0;0H"+string(BGBrightBlack)+"%v"+strings.Repeat(" ", max(1, min(cl.GM.GC.FieldWidth*2, cl.maxWidth*2)-msgLen))+"%v"+string(Reset), msgLeft, msgRight)
+	frame := fmt.Sprintf("\033[0;0H"+string(BGBrightBlack)+"%v"+strings.Repeat(" ", max(1, min(cl.gm.GC.FieldWidth*2, cl.maxWidth*2)-msgLen))+"%v"+string(Reset), msgLeft, msgRight)
 
-	if cl.maxWidth > cl.GM.GC.FieldWidth+10 && cl.maxHeight+1 >= len(game.Towers) {
+	if cl.maxWidth > cl.gm.GC.FieldWidth+10 && cl.maxHeight+1 >= len(game.Towers) {
 		for i, tower := range game.Towers {
-			frame += "\033[" + strconv.Itoa(i+1) + ";" + strconv.Itoa((cl.GM.GC.FieldWidth*2)+1) + "H"
+			frame += "\033[" + strconv.Itoa(i+1) + ";" + strconv.Itoa((cl.gm.GC.FieldWidth*2)+1) + "H"
 			msgLeft := tower.Name
 			msgRight := "(" + strconv.Itoa(tower.Cost) + ")"
 			if i == cl.selectedTower {
