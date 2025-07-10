@@ -45,10 +45,10 @@ var (
 		"start;down":  {2, 2},
 		"start;left":  {3, 2},
 
-		"end;up":    {0, 3},
-		"end;right": {1, 3},
-		"end;down":  {2, 3},
-		"end;left":  {3, 3},
+		"up;end":    {0, 3},
+		"right;end": {1, 3},
+		"down;end":  {2, 3},
+		"left;end":  {3, 3},
 	}
 
 	TEXTURE_TOWERS = map[string][16]vector{
@@ -141,15 +141,15 @@ var (
 		"up;right":   {7, 0},
 		"left;down":  {7, 0},
 
-		"dir;down":  {0, 0},
-		"dir;left":  {2, 0},
-		"dir;up":    {4, 0},
-		"dir;right": {6, 0},
+		"start;down":  {0, 0},
+		"start;left":  {2, 0},
+		"start;up":    {4, 0},
+		"start;right": {6, 0},
 
-		"dirrev;up":    {0, 0},
-		"dirrev;right": {2, 0},
-		"dirrev;down":  {4, 0},
-		"dirrev;left":  {6, 0},
+		"up;end":    {0, 0},
+		"right;end": {2, 0},
+		"down;end":  {4, 0},
+		"left;end":  {6, 0},
 	}
 
 	TEXTURE_TEXT = map[rune]vector{

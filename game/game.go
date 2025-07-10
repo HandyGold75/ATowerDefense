@@ -198,6 +198,8 @@ func (game *Game) genRoads() {
 		})
 		index += 1
 	}
+	game.GS.Roads[0].DirEntrance = "start"
+	game.GS.Roads[len(game.GS.Roads)-1].DirExit = "end"
 }
 
 func (game *Game) genObstacles() {
