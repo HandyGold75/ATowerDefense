@@ -22,7 +22,7 @@ var (
 		TUI    bool   `switch:"t,-tui"                     help:"Use TUI renderer"`
 	}{})
 
-	//go:embed client/assets/*/*.png
+	//go:embed assets/*/*.png
 	assets embed.FS
 )
 

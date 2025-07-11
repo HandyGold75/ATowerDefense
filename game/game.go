@@ -131,6 +131,160 @@ func NewGame(gc GameConfig) *Game {
 	}
 }
 
+func (game *Game) Run(callback func(time.Duration) error) error {
+	processTime := time.Duration(0)
+	last := time.Now()
+	for game.GS.State != "stopped" {
+		now := time.Now()
+
+		game.iterate(time.Since(last) * time.Duration(game.GC.GameSpeed))
+		if err := callback(processTime); err != nil {
+			if err == Errors.Exit {
+				return nil
+			}
+			return err
+		}
+
+		last = now
+		processTime = time.Since(now)
+		time.Sleep(game.GC.TickDelay - time.Since(now))
+	}
+	return nil
+}
+
+func (game *Game) Start() error {
+	if game.GS.State != "waiting" {
+		return Errors.GameStateNotWaiting
+	}
+
+	game.genRoads()
+	game.genObstacles()
+
+	game.GS.State = "started"
+	return nil
+}
+
+func (game *Game) Stop() error {
+	if game.GS.State != "started" && game.GS.State != "paused" {
+		return Errors.GameStateNotActive
+	}
+
+	game.GS.State = "stopped"
+	return nil
+}
+
+func (game *Game) AddPlayer() int {
+	index := len(game.Players)
+	game.Players = append(game.Players, Player{
+		Index: index,
+		Coins: 80,
+	})
+	return index
+}
+
+func (game *Game) TogglePause() {
+	switch game.GS.State {
+	case "started":
+		game.GS.State = "paused"
+	case "paused":
+		game.GS.State = "started"
+	}
+}
+
+func (game *Game) StartRound() error {
+	if game.GS.State != "started" && game.GS.State != "paused" {
+		return Errors.GameStateNotActive
+	} else if game.GS.Phase != "building" {
+		return Errors.GamePhaseNotBuilding
+	}
+
+	game.GS.Round += 1
+	game.genEnemies()
+
+	game.GS.Phase = "defending"
+	return nil
+}
+
+func (game *Game) PlaceTower(name string, x, y, pid int) error {
+	if game.GS.State != "started" && game.GS.State != "paused" {
+		return Errors.GameStateNotActive
+	}
+	if pid < 0 || pid >= len(game.Players) {
+		return Errors.InvalidPlayer
+	}
+	if game.CheckCollisions(x, y) {
+		return Errors.InvalidPlacement
+	}
+
+	i := slices.IndexFunc(Towers, func(obj TowerObj) bool { return obj.Name == name })
+	if i < 0 {
+		return Errors.TowerNotExists
+	}
+	tower := Towers[i]
+
+	if tower.Cost > game.Players[pid].Coins {
+		return Errors.InsufficientFunds
+	}
+	game.Players[pid].Coins -= tower.Cost
+
+	uid += 1
+	tower.x, tower.y, tower.UID, tower.Owner = x, y, uid, pid
+	for offsetY := range (tower.Range * 2) + 1 {
+		for offsetX := range (tower.Range * 2) + 1 {
+			tower.effectiveRange = append(tower.effectiveRange, game.GetCollisionRoads(x+(offsetX-tower.Range), y+(offsetY-tower.Range))...)
+		}
+	}
+	slices.SortFunc(tower.effectiveRange, func(a, b *RoadObj) int { return b.Index - a.Index })
+
+	game.GS.Towers = append(game.GS.Towers, &tower)
+
+	return nil
+}
+
+func (game *Game) DestroyTower(x, y, pid int) error {
+	if game.GS.State != "started" && game.GS.State != "paused" {
+		return Errors.GameStateNotActive
+	}
+	if pid < 0 || pid >= len(game.Players) {
+		return Errors.InvalidPlayer
+	}
+	towers := game.GetCollisionTowers(x, y)
+	if len(towers) != 1 {
+		return Errors.InvalidSelection
+	}
+	if towers[0].Owner != pid {
+		return Errors.InvalidPlayer
+	}
+
+	game.Players[pid].Coins += towers[0].Cost / 2
+	game.GS.Towers = slices.DeleteFunc(game.GS.Towers, func(obj *TowerObj) bool { return obj.UID == towers[0].UID })
+
+	return nil
+}
+
+func (game *Game) DestroyObstacle(x, y, pid int) error {
+	if game.GS.State != "started" && game.GS.State != "paused" {
+		return Errors.GameStateNotActive
+	}
+	if pid < 0 || pid >= len(game.Players) {
+		return Errors.InvalidPlayer
+	}
+	obstacles := game.GetCollisionObstacles(x, y)
+	if len(obstacles) != 1 {
+		return Errors.InvalidSelection
+	}
+	obstacle := obstacles[0]
+
+	if obstacle.Cost > game.Players[pid].Coins {
+		return Errors.InsufficientFunds
+	}
+	game.Players[pid].Coins -= obstacle.Cost
+
+	game.GS.Obstacles = slices.DeleteFunc(game.GS.Obstacles, func(obj *ObstacleObj) bool { return obj.UID == obstacle.UID })
+
+	return nil
+}
+
 func (game *Game) genRoads() {
 	x, y, dir := rand.IntN(game.GC.FieldWidth), rand.IntN(game.GC.FieldHeight), [4]string{"up", "right", "down", "left"}[rand.IntN(4)]
 	index := 0
@@ -331,139 +485,6 @@ func (game *Game) genEnemies() {
 	}
 }
 
-func (game *Game) AddPlayer() int {
-	index := len(game.Players)
-	game.Players = append(game.Players, Player{
-		Index: index,
-		Coins: 80,
-	})
-	return index
-}
-
-func (game *Game) Start() error {
-	if game.GS.State != "waiting" {
-		return Errors.GameStateNotWaiting
-	}
-
-	game.genRoads()
-	game.genObstacles()
-
-	game.GS.State = "started"
-	return nil
-}
-
-func (game *Game) Stop() error {
-	if game.GS.State != "started" && game.GS.State != "paused" {
-		return Errors.GameStateNotActive
-	}
-
-	game.GS.State = "stopped"
-	return nil
-}
-
-func (game *Game) TogglePause() {
-	switch game.GS.State {
-	case "started":
-		game.GS.State = "paused"
-	case "paused":
-		game.GS.State = "started"
-	}
-}
-
-func (game *Game) StartRound() error {
-	if game.GS.State != "started" && game.GS.State != "paused" {
-		return Errors.GameStateNotActive
-	} else if game.GS.Phase != "building" {
-		return Errors.GamePhaseNotBuilding
-	}
-
-	game.GS.Round += 1
-	game.genEnemies()
-
-	game.GS.Phase = "defending"
-	return nil
-}
-
-func (game *Game) PlaceTower(name string, x, y, pid int) error {
-	if game.GS.State != "started" && game.GS.State != "paused" {
-		return Errors.GameStateNotActive
-	}
-	if pid < 0 || pid >= len(game.Players) {
-		return Errors.InvalidPlayer
-	}
-	if game.CheckCollisions(x, y) {
-		return Errors.InvalidPlacement
-	}
-
-	i := slices.IndexFunc(Towers, func(obj TowerObj) bool { return obj.Name == name })
-	if i < 0 {
-		return Errors.TowerNotExists
-	}
-	tower := Towers[i]
-
-	if tower.Cost > game.Players[pid].Coins {
-		return Errors.InsufficientFunds
-	}
-	game.Players[pid].Coins -= tower.Cost
-
-	uid += 1
-	tower.x, tower.y, tower.UID, tower.Owner = x, y, uid, pid
-	for offsetY := range (tower.Range * 2) + 1 {
-		for offsetX := range (tower.Range * 2) + 1 {
-			tower.effectiveRange = append(tower.effectiveRange, game.GetCollisionRoads(x+(offsetX-tower.Range), y+(offsetY-tower.Range))...)
-		}
-	}
-	slices.SortFunc(tower.effectiveRange, func(a, b *RoadObj) int { return b.Index - a.Index })
-
-	game.GS.Towers = append(game.GS.Towers, &tower)
-
-	return nil
-}
-
-func (game *Game) DestroyTower(x, y, pid int) error {
-	if game.GS.State != "started" && game.GS.State != "paused" {
-		return Errors.GameStateNotActive
-	}
-	if pid < 0 || pid >= len(game.Players) {
-		return Errors.InvalidPlayer
-	}
-	towers := game.GetCollisionTowers(x, y)
-	if len(towers) != 1 {
-		return Errors.InvalidSelection
-	}
-	if towers[0].Owner != pid {
-		return Errors.InvalidPlayer
-	}
-
-	game.Players[pid].Coins += towers[0].Cost / 2
-	game.GS.Towers = slices.DeleteFunc(game.GS.Towers, func(obj *TowerObj) bool { return obj.UID == towers[0].UID })
-
-	return nil
-}
-
-func (game *Game) DestroyObstacle(x, y, pid int) error {
-	if game.GS.State != "started" && game.GS.State != "paused" {
-		return Errors.GameStateNotActive
-	}
-	if pid < 0 || pid >= len(game.Players) {
-		return Errors.InvalidPlayer
-	}
-	obstacles := game.GetCollisionObstacles(x, y)
-	if len(obstacles) != 1 {
-		return Errors.InvalidSelection
-	}
-	obstacle := obstacles[0]
-
-	if obstacle.Cost > game.Players[pid].Coins {
-		return Errors.InsufficientFunds
-	}
-	game.Players[pid].Coins -= obstacle.Cost
-
-	game.GS.Obstacles = slices.DeleteFunc(game.GS.Obstacles, func(obj *ObstacleObj) bool { return obj.UID == obstacle.UID })
-
-	return nil
-}
-
 func (game *Game) iterate(delta time.Duration) {
 	if game.GS.State == "paused" {
 		return
@@ -533,25 +554,4 @@ func (game *Game) iterate(delta time.Duration) {
 			return
 		}
 	}
-}
-
-func (game *Game) Run(callback func(time.Duration) error) error {
-	processTime := time.Duration(0)
-	last := time.Now()
-	for game.GS.State != "stopped" {
-		now := time.Now()
-
-		game.iterate(time.Since(last) * time.Duration(game.GC.GameSpeed))
-		if err := callback(processTime); err != nil {
-			if err == Errors.Exit {
-				return nil
-			}
-			return err
-		}
-
-		last = now
-		processTime = time.Since(now)
-		time.Sleep(game.GC.TickDelay - time.Since(now))
-	}
-	return nil
 }
