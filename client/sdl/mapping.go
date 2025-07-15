@@ -53,7 +53,7 @@ var (
 	}
 
 	textureTowers = map[string][16]sdl.Rect{
-		"Basic": {
+		"Soldier": {
 			{X: 0 * tileSize, Y: 0 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 			{X: 1 * tileSize, Y: 0 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 			{X: 2 * tileSize, Y: 0 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
@@ -71,7 +71,7 @@ var (
 			{X: 14 * tileSize, Y: 0 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 			{X: 15 * tileSize, Y: 0 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 		},
-		"LongRange": {
+		"Sniper": {
 			{X: 0 * tileSize, Y: 1 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 			{X: 1 * tileSize, Y: 1 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 			{X: 2 * tileSize, Y: 1 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
@@ -89,7 +89,7 @@ var (
 			{X: 14 * tileSize, Y: 1 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 			{X: 15 * tileSize, Y: 1 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 		},
-		"Fast": {
+		"Scout": {
 			{X: 0 * tileSize, Y: 2 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 			{X: 1 * tileSize, Y: 2 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 			{X: 2 * tileSize, Y: 2 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
@@ -107,7 +107,7 @@ var (
 			{X: 14 * tileSize, Y: 2 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 			{X: 15 * tileSize, Y: 2 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 		},
-		"Strong": {
+		"Heavy": {
 			{X: 0 * tileSize, Y: 3 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 			{X: 1 * tileSize, Y: 3 * tileSize, W: 1 * tileSize, H: 1 * tileSize},
 			{X: 2 * tileSize, Y: 3 * tileSize, W: 1 * tileSize, H: 1 * tileSize},

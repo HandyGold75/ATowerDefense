@@ -231,7 +231,7 @@ func (cl *clSDL) input() error {
 					cl.warningMsg = err.Error()
 					cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
 				} else if err := cl.gm.DestroyObstacle(cl.selectedX, cl.selectedY, cl.pid); err != nil {
-					if err != game.Errors.InvalidPlacement {
+					if err != game.Errors.InvalidSelection {
 						cl.warningMsg = err.Error()
 						cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
 					} else if err := cl.gm.DestroyTower(cl.selectedX, cl.selectedY, cl.pid); err != nil {
@@ -326,7 +326,7 @@ func (cl *clSDL) input() error {
 			}
 		case sdl.BUTTON_RIGHT:
 			if err := cl.gm.DestroyObstacle(cl.selectedX, cl.selectedY, cl.pid); err != nil {
-				if err != game.Errors.InvalidPlacement {
+				if err != game.Errors.InvalidSelection {
 					cl.warningMsg = err.Error()
 					cl.warningMsgTimeout = time.Now().Add(time.Second * 3)
 				} else if err := cl.gm.DestroyTower(cl.selectedX, cl.selectedY, cl.pid); err != nil {
@@ -506,6 +506,19 @@ func (cl *clSDL) drawField() error {
 		}
 	}
 
+	for _, obstacle := range cl.gm.GS.Obstacles {
+		x, y := obstacle.Cord()
+		dst := cl.newRect(int32(x+cl.viewOffsetX), int32(y+cl.viewOffsetY))
+		src, ok := obstacleCache[obstacle.UID]
+		if !ok {
+			src = textureObstacles[rand.Int32N(6)]
+			obstacleCache[obstacle.UID] = src
+		}
+		if err := cl.renderer.Copy(cl.textures.environment, &src, &dst); err != nil {
+			return err
+		}
+	}
+
 	for _, tower := range cl.gm.GS.Towers {
 		x, y := tower.Cord()
 		dst := cl.newRect(int32(x+cl.viewOffsetX), int32(y+cl.viewOffsetY))
@@ -517,19 +530,6 @@ func (cl *clSDL) drawField() error {
 		src = textureUI["barblue;"+strconv.Itoa(int(math.Round(min(tower.ReloadProgress, 1)*9)))]
 
 		if err := cl.renderer.Copy(cl.textures.ui, &src, &dst); err != nil {
-			return err
-		}
-	}
-
-	for _, obstacle := range cl.gm.GS.Obstacles {
-		x, y := obstacle.Cord()
-		dst := cl.newRect(int32(x+cl.viewOffsetX), int32(y+cl.viewOffsetY))
-		src, ok := obstacleCache[obstacle.UID]
-		if !ok {
-			src = textureObstacles[rand.Int32N(6)]
-			obstacleCache[obstacle.UID] = src
-		}
-		if err := cl.renderer.Copy(cl.textures.environment, &src, &dst); err != nil {
 			return err
 		}
 	}

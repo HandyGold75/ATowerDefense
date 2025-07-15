@@ -26,6 +26,12 @@ type (
 		x, y int
 		// Unique identifier.
 		UID int
+		// Ready when progress greater or equel to 1
+		ReloadProgress float64
+		// Tower roation in degrees, starting north going clockwise.
+		Rotation float64
+		// Road objects the tower has range over.
+		effectiveRange []*RoadObj
 		// Tower name
 		Name string
 		// Cost of the tower.
@@ -34,16 +40,10 @@ type (
 		Owner int
 		// Targeting range in tiles.
 		Range int
-		// Tower roation in degrees, starting north going clockwise.
-		Rotation float64
 		// Damage multiplier.
 		damage int
-		// Ready when progress greater or equel to 1
-		ReloadProgress float64
 		// Progress 1 every second * this.
-		reloadSpeedMultiplier float64
-		// Road objects the tower has range over.
-		effectiveRange []*RoadObj
+		reloadSpeed float64
 	}
 	EnemyObj struct {
 		x, y int
