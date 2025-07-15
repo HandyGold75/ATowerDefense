@@ -273,7 +273,7 @@ func (cl *clTUI) input() error {
 				return err
 			}
 			if err := cl.gm.DestroyObstacle(cl.selectedX, cl.selectedY, cl.pid); err != nil {
-				if err != game.Errors.InvalidPlacement {
+				if err != game.Errors.InvalidSelection {
 					return err
 				}
 				return cl.gm.DestroyTower(cl.selectedX, cl.selectedY, cl.pid)

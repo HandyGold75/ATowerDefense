@@ -28,13 +28,14 @@ var (
 
 func main() {
 	gc := game.GameConfig{
-		Mode:        "singleplayer",
-		IP:          "84.25.253.77",
-		Port:        17540,
-		FieldHeight: 20,
-		FieldWidth:  35,
-		GameSpeed:   1,
-		TickDelay:   time.Millisecond * 50,
+		Mode:             "singleplayer",
+		IP:               "84.25.253.77",
+		Port:             17540,
+		FieldHeight:      20,
+		FieldWidth:       35,
+		GameSpeed:        1,
+		RefuntMultiplier: 0.8,
+		TickDelay:        time.Millisecond * 50,
 	}
 
 	if args.Server {
