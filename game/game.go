@@ -19,14 +19,10 @@ type (
 	}
 
 	GameConfig struct {
-		// Valid modes: `singleplayer`, `multiplayer`, `server`
-		Mode             string
-		IP               string
-		Port             uint16
 		FieldWidth       int
 		FieldHeight      int
 		GameSpeed        int
-		RefuntMultiplier float64
+		RefundMultiplier float64
 		TickDelay        time.Duration
 	}
 	GameState struct {
@@ -136,7 +132,9 @@ func (game *Game) Run(callback func(time.Duration) error) error {
 	for game.GS.State != "stopped" {
 		now := time.Now()
 
-		game.iterate(time.Since(last) * time.Duration(game.GC.GameSpeed))
+		if game.GC.GameSpeed > 0 {
+			game.iterate(time.Since(last) * time.Duration(1<<(game.GC.GameSpeed-1)))
+		}
 		if err := callback(processTime); err != nil {
 			if err == Errors.Exit {
 				return nil
@@ -146,7 +144,7 @@ func (game *Game) Run(callback func(time.Duration) error) error {
 
 		last = now
 		processTime = time.Since(now)
-		time.Sleep(game.GC.TickDelay - time.Since(now))
+		time.Sleep((game.GC.TickDelay / time.Duration(max(1, game.GC.GameSpeed))) - time.Since(now))
 	}
 	return nil
 }
@@ -255,7 +253,7 @@ func (game *Game) DestroyTower(x, y, pid int) error {
 		return Errors.InvalidPlayer
 	}
 
-	game.Players[pid].Coins += int(float64(towers[0].Cost) * game.GC.RefuntMultiplier)
+	game.Players[pid].Coins += int(float64(towers[0].Cost) * game.GC.RefundMultiplier)
 	game.GS.Towers = slices.DeleteFunc(game.GS.Towers, func(obj *TowerObj) bool { return obj.UID == towers[0].UID })
 
 	return nil
@@ -380,7 +378,22 @@ func (game *Game) iterate(delta time.Duration) {
 		return
 	}
 
-	if game.GS.Phase == "defending" {
+	if game.GS.Phase == "building" {
+		for _, tower := range game.GS.Towers {
+			if tower.ReloadProgress < 1 {
+				tower.ReloadProgress += (float64(delta.Milliseconds()) / 1000) * tower.reloadSpeed
+			}
+
+			if r := float64(rand.IntN(5000)); r <= 90 {
+				tower.Rotation += r - 45
+				if tower.Rotation < 0 {
+					tower.Rotation += 360
+				} else if tower.Rotation > 360 {
+					tower.Rotation -= 360
+				}
+			}
+		}
+	} else if game.GS.Phase == "defending" {
 		for _, tower := range game.GS.Towers {
 			if tower.ReloadProgress < 1 {
 				tower.ReloadProgress += (float64(delta.Milliseconds()) / 1000) * tower.reloadSpeed

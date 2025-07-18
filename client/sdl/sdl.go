@@ -642,9 +642,9 @@ func (cl *clSDL) drawUI(processTime time.Duration) error {
 		return err
 	}
 
-	// if processTime >= cl.gm.GC.TickDelay {
+	// if processTime >= cl.gm.GC.TickDelay/time.Duration(max(1, cl.gm.GC.GameSpeed)) {
 	// }
-	stats := fmt.Sprintf("%v %v %v %v", cl.gm.GC.GameSpeed, processTime.Microseconds(), cl.gm.Players[cl.pid].Coins, cl.gm.GS.Health)
+	stats := fmt.Sprintf("%v %v %v %v", cl.gm.GC.GameSpeed, processTime.Milliseconds(), cl.gm.Players[cl.pid].Coins, cl.gm.GS.Health)
 	stats = strings.Repeat(" ", int(cl.windowW/32)-len(stats)-1) + stats
 
 	if err := cl.renderString(stats, 0, 0); err != nil {

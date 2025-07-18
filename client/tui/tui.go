@@ -108,44 +108,33 @@ func newTUI(gc game.GameConfig) (*clTUI, error) {
 	}
 	pid := gm.AddPlayer()
 
-	mode := ""
 	tui.Defaults.Align = tui.AlignLeft
 	mm := tui.NewMenuBulky("ASnake")
 
-	sp := mm.Menu.NewMenu("SinglePlayer")
-	sp.NewAction("Start", func() { mode = "singleplayer" })
-	spFieldWidth := sp.NewDigit("Field width", gc.FieldWidth, 10, 9999)
-	spFieldHeight := sp.NewDigit("Field height", gc.FieldHeight, 10, 9999)
-
-	mp := mm.Menu.NewMenu("MultiPlayer")
-	mp.NewAction("Connect", func() { mode = "multiplayer" })
-	mpIP := mp.NewIPv4("IP", gc.IP)
-	mpPort := mp.NewDigit("Port", int(gc.Port), 0, 65535)
+	mm.Menu.NewAction("Start", func() {})
+	mmFieldWidth := mm.Menu.NewDigit("Field width", gm.GC.FieldWidth, 10, 9999)
+	mmFieldHeight := mm.Menu.NewDigit("Field height", gm.GC.FieldHeight, 10, 9999)
+	mmRefundMultiplier := mm.Menu.NewDigit("Refund Multiplier", int(gm.GC.RefundMultiplier*100), 0, 100)
 
 	if err := mm.Run(); err != nil {
 		return nil, err
 	}
 
-	fieldHeight, err := strconv.Atoi(spFieldHeight.Value())
+	fieldHeight, err := strconv.Atoi(mmFieldHeight.Value())
 	if err != nil {
 		return nil, err
 	}
-	gc.FieldHeight = fieldHeight
-	fieldWidth, err := strconv.Atoi(spFieldWidth.Value())
+	gm.GC.FieldHeight = fieldHeight
+	fieldWidth, err := strconv.Atoi(mmFieldWidth.Value())
 	if err != nil {
 		return nil, err
 	}
-	gc.FieldWidth = fieldWidth
-
-	gc.IP = mpIP.Value()
-	port, err := strconv.ParseUint(mpPort.Value(), 10, 16)
+	gm.GC.FieldWidth = fieldWidth
+	refundMultiplier, err := strconv.Atoi(mmRefundMultiplier.Value())
 	if err != nil {
 		return nil, err
 	}
-	gc.Port = uint16(port)
-
-	gc.Mode = mode
-	gm.GC = gc
+	gm.GC.RefundMultiplier = float64(refundMultiplier) / 100
 
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return nil, errors.New("stdin is not a terminal")
@@ -416,7 +405,7 @@ func (cl *clTUI) getUI(processTime time.Duration) string {
 	msgLeft := fmt.Sprintf(string(BrightWhite+"%v"), phase)
 
 	lag := strconv.FormatInt(processTime.Milliseconds(), 10)
-	if processTime >= cl.gm.GC.TickDelay {
+	if processTime >= cl.gm.GC.TickDelay/time.Duration(max(1, cl.gm.GC.GameSpeed)) {
 		msgLen -= 4
 		lag = string(Red) + lag
 	}

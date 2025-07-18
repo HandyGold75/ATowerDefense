@@ -4,7 +4,6 @@ import (
 	clsdl "ATowerDefense/client/sdl"
 	cltui "ATowerDefense/client/tui"
 	"ATowerDefense/game"
-	"ATowerDefense/server"
 	"embed"
 	"fmt"
 	"os"
@@ -15,11 +14,11 @@ import (
 
 var (
 	args = argp.ParseArgs(struct {
-		Help   bool   `switch:"h,-help" opts:"help"        help:"Another game of Snake."`
-		Server bool   `switch:"s,-server"                  help:"Start as a server instace."`
-		IP     string `switch:"i,-ip" default:"0.0.0.0"    help:"Listen on this ip when started as server."`
-		Port   uint16 `switch:"p,-port" default:"17540"    help:"Listen on this port when started as server."`
-		TUI    bool   `switch:"t,-tui"                     help:"Use TUI renderer"`
+		Help             bool    `switch:"h,-help"              opts:"help"   help:"Another game of Snake."`
+		FieldWidth       int     `switch:"w,-field-width"       default:"35"  help:"Game setting: Field Width"`
+		FieldHeight      int     `switch:"h,-field-height"      default:"20"  help:"Game setting: Field Height"`
+		RefundMultiplier float64 `switch:"r,-refund-multiplier" default:"0.8" help:"Game setting: Refund Multiplier"`
+		TUI              bool    `switch:"t,-tui"                             help:"Use TUI renderer"`
 	}{})
 
 	//go:embed assets/*/*.png
@@ -28,24 +27,14 @@ var (
 
 func main() {
 	gc := game.GameConfig{
-		Mode:             "singleplayer",
-		IP:               "84.25.253.77",
-		Port:             17540,
-		FieldHeight:      20,
-		FieldWidth:       35,
+		FieldHeight:      args.FieldHeight,
+		FieldWidth:       args.FieldWidth,
 		GameSpeed:        1,
-		RefuntMultiplier: 0.8,
+		RefundMultiplier: args.RefundMultiplier,
 		TickDelay:        time.Millisecond * 50,
 	}
 
-	if args.Server {
-		gc.IP = args.IP
-		gc.Port = args.Port
-		if err := server.Run(gc); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-	} else if args.TUI {
+	if args.TUI {
 		if err := cltui.Run(gc); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
