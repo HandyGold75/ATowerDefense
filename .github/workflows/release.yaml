@@ -28,4 +28,4 @@ jobs:
           extra_files: LICENSE README.md
           project_path: .
           binary_name: ATowerDefense
-          pre_command: "rm /var/lib/apt/lists/* && apt-get update && apt-get -y install libsdl2-dev libsdl2-image-dev"
+          pre_command: "apt-get -m update && apt-get -y install libsdl2-dev libsdl2-image-dev"
