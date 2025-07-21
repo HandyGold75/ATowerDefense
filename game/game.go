@@ -285,7 +285,7 @@ func (game *Game) DestroyObstacle(x, y, pid int) error {
 func (game *Game) genRoads() {
 	x, y, dir := rand.IntN(game.GC.FieldWidth), rand.IntN(game.GC.FieldHeight), [4]string{"up", "right", "down", "left"}[rand.IntN(4)]
 	index, conRetries := 0, 0
-	for i := 0; i < int(float64(game.GC.FieldWidth+game.GC.FieldHeight)*(1+rand.Float64())); i++ {
+	for i := 0; i < int(float64(game.GC.FieldWidth+game.GC.FieldHeight)*(2+rand.Float64())); i++ {
 		oldX, oldY, oldDir := x, y, dir
 
 		switch n := rand.IntN(8); {
@@ -337,7 +337,7 @@ func (game *Game) genRoads() {
 
 		if (conRetries < 2 && game.CheckCollisions(x, y)) || (game.CheckCollisionObstacles(x, y) || game.CheckCollisionTowers(x, y)) {
 			x, y, dir = oldX, oldY, oldDir
-			if conRetries < 8 && i < game.GC.FieldWidth+game.GC.FieldHeight {
+			if conRetries < 8 && i < (game.GC.FieldWidth+game.GC.FieldHeight)*2 {
 				i--
 			}
 			conRetries++
