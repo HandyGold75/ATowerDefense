@@ -276,7 +276,7 @@ func (cl *clSDL) input() error {
 			cl.selectedTower = min(cl.selectedTower+1, len(game.Towers)-1)
 
 		case sdl.SCANCODE_EQUALS, sdl.SCANCODE_KP_PLUS:
-			if cl.gm.GC.TickDelay/(1<<cl.gm.GC.GameSpeed) > 0 {
+			if cl.gm.GC.TickDelay/(1<<cl.gm.GC.GameSpeed) >= time.Millisecond {
 				cl.gm.GC.GameSpeed = min(cl.gm.GC.GameSpeed+1, 9)
 			}
 		case sdl.SCANCODE_MINUS, sdl.SCANCODE_KP_MINUS:
