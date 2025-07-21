@@ -102,19 +102,13 @@ func Run(gc game.GameConfig) error {
 }
 
 func newTUI(gc game.GameConfig) (*clTUI, error) {
-	gm := game.NewGame(gc)
-	if err := gm.Start(); err != nil {
-		return nil, err
-	}
-	pid := gm.AddPlayer()
-
 	tui.Defaults.Align = tui.AlignLeft
 	mm := tui.NewMenuBulky("ASnake")
 
 	mm.Menu.NewAction("Start", func() {})
-	mmFieldWidth := mm.Menu.NewDigit("Field width", gm.GC.FieldWidth, 10, 9999)
-	mmFieldHeight := mm.Menu.NewDigit("Field height", gm.GC.FieldHeight, 10, 9999)
-	mmRefundMultiplier := mm.Menu.NewDigit("Refund Multiplier", int(gm.GC.RefundMultiplier*100), 0, 100)
+	mmFieldWidth := mm.Menu.NewDigit("Field width", gc.FieldWidth, 10, 9999)
+	mmFieldHeight := mm.Menu.NewDigit("Field height", gc.FieldHeight, 10, 9999)
+	mmRefundMultiplier := mm.Menu.NewDigit("Refund Multiplier", int(gc.RefundMultiplier*100), 0, 100)
 
 	if err := mm.Run(); err != nil {
 		return nil, err
@@ -124,17 +118,17 @@ func newTUI(gc game.GameConfig) (*clTUI, error) {
 	if err != nil {
 		return nil, err
 	}
-	gm.GC.FieldHeight = fieldHeight
+	gc.FieldHeight = fieldHeight
 	fieldWidth, err := strconv.Atoi(mmFieldWidth.Value())
 	if err != nil {
 		return nil, err
 	}
-	gm.GC.FieldWidth = fieldWidth
+	gc.FieldWidth = fieldWidth
 	refundMultiplier, err := strconv.Atoi(mmRefundMultiplier.Value())
 	if err != nil {
 		return nil, err
 	}
-	gm.GC.RefundMultiplier = float64(refundMultiplier) / 100
+	gc.RefundMultiplier = float64(refundMultiplier) / 100
 
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return nil, errors.New("stdin is not a terminal")
@@ -147,6 +141,12 @@ func newTUI(gc game.GameConfig) (*clTUI, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	gm := game.NewGame(gc)
+	if err := gm.Start(); err != nil {
+		return nil, err
+	}
+	pid := gm.AddPlayer()
 
 	return &clTUI{
 		gm: gm, pid: pid,
