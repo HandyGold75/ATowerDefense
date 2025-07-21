@@ -106,8 +106,8 @@ func newTUI(gc game.GameConfig) (*clTUI, error) {
 	mm := tui.NewMenuBulky("ASnake")
 
 	mm.Menu.NewAction("Start", func() {})
-	mmFieldWidth := mm.Menu.NewDigit("Field width", gc.FieldWidth, 10, 9999)
-	mmFieldHeight := mm.Menu.NewDigit("Field height", gc.FieldHeight, 10, 9999)
+	mmFieldWidth := mm.Menu.NewDigit("Field width", gc.FieldWidth, 10, 999)
+	mmFieldHeight := mm.Menu.NewDigit("Field height", gc.FieldHeight, 10, 999)
 	mmRefundMultiplier := mm.Menu.NewDigit("Refund Multiplier", int(gc.RefundMultiplier*100), 0, 100)
 
 	if err := mm.Run(); err != nil {
