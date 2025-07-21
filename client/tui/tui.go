@@ -309,7 +309,7 @@ func (cl *clTUI) input() error {
 		return nil
 
 	} else if keyBindContains(cl.keyBinds.plus, in) {
-		if 1<<cl.gm.GC.GameSpeed > 0 {
+		if cl.gm.GC.TickDelay/(1<<cl.gm.GC.GameSpeed) > 0 {
 			cl.gm.GC.GameSpeed = min(cl.gm.GC.GameSpeed+1, 9)
 		}
 	} else if keyBindContains(cl.keyBinds.minus, in) {
