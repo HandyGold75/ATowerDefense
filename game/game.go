@@ -144,7 +144,7 @@ func (game *Game) Run(callback func(time.Duration) error) error {
 
 		last = now
 		processTime = time.Since(now)
-		time.Sleep((game.GC.TickDelay / time.Duration(max(1, game.GC.GameSpeed))) - time.Since(now))
+		time.Sleep((game.GC.TickDelay / time.Duration(1<<max(0, game.GC.GameSpeed-1))) - time.Since(now))
 	}
 	return nil
 }

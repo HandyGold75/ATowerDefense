@@ -309,7 +309,9 @@ func (cl *clTUI) input() error {
 		return nil
 
 	} else if keyBindContains(cl.keyBinds.plus, in) {
-		cl.gm.GC.GameSpeed = min(cl.gm.GC.GameSpeed+1, 9)
+		if 1<<cl.gm.GC.GameSpeed > 0 {
+			cl.gm.GC.GameSpeed = min(cl.gm.GC.GameSpeed+1, 9)
+		}
 	} else if keyBindContains(cl.keyBinds.minus, in) {
 		cl.gm.GC.GameSpeed = max(cl.gm.GC.GameSpeed-1, 0)
 	} else if i := keyBindIndex(cl.keyBinds.numbers, in); i >= 0 {
@@ -405,7 +407,7 @@ func (cl *clTUI) getUI(processTime time.Duration) string {
 	msgLeft := fmt.Sprintf(string(BrightWhite+"%v"), phase)
 
 	lag := strconv.FormatInt(processTime.Milliseconds(), 10)
-	if processTime >= cl.gm.GC.TickDelay/time.Duration(max(1, cl.gm.GC.GameSpeed)) {
+	if processTime >= cl.gm.GC.TickDelay/time.Duration(1<<max(0, cl.gm.GC.GameSpeed-1)) {
 		msgLen -= 4
 		lag = string(Red) + lag
 	}
