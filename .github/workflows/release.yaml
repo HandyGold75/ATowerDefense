@@ -28,3 +28,4 @@ jobs:
           extra_files: LICENSE README.md
           project_path: .
           binary_name: ATowerDefense
+          pre_command: apt install libsdl2-dev libsdl2-image-dev
