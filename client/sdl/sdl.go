@@ -276,7 +276,9 @@ func (cl *clSDL) input() error {
 			cl.selectedTower = min(cl.selectedTower+1, len(game.Towers)-1)
 
 		case sdl.SCANCODE_EQUALS, sdl.SCANCODE_KP_PLUS:
-			cl.gm.GC.GameSpeed = min(cl.gm.GC.GameSpeed+1, 9)
+			if 1<<cl.gm.GC.GameSpeed > 0 {
+				cl.gm.GC.GameSpeed = min(cl.gm.GC.GameSpeed+1, 9)
+			}
 		case sdl.SCANCODE_MINUS, sdl.SCANCODE_KP_MINUS:
 			cl.gm.GC.GameSpeed = max(cl.gm.GC.GameSpeed-1, 0)
 		}
@@ -642,8 +644,7 @@ func (cl *clSDL) drawUI(processTime time.Duration) error {
 		return err
 	}
 
-	// if processTime >= cl.gm.GC.TickDelay/time.Duration(max(1, cl.gm.GC.GameSpeed)) {
-	// }
+	// if processTime >= cl.gm.GC.TickDelay/time.Duration(1<<max(0, cl.gm.GC.GameSpeed-1)) {}
 	stats := fmt.Sprintf("%v %v %v %v", cl.gm.GC.GameSpeed, processTime.Milliseconds(), cl.gm.Players[cl.pid].Coins, cl.gm.GS.Health)
 	stats = strings.Repeat(" ", int(cl.windowW/32)-len(stats)-1) + stats
 
